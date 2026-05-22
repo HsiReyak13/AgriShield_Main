@@ -1,6 +1,6 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5]
-lastStep: 5
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
+lastStep: 8
 inputDocuments:
   - C:\Users\LA\Documents\AppDev\AgriShield\_bmad-output\planning-artifacts\prds\prd-AgriShield-2026-05-21\prd.md
   - C:\Users\LA\Documents\AppDev\AgriShield\_bmad-output\planning-artifacts\ux-design-specification.md
@@ -8,7 +8,8 @@ workflowType: 'architecture'
 project_name: 'AgriShield'
 user_name: 'LA'
 date: '2026-05-22'
-status: 'in-progress'
+status: 'complete'
+completedAt: '2026-05-22'
 ---
 
 # Architecture Decision Document
@@ -105,7 +106,7 @@ Use Very Good CLI:
 
 ```bash
 dart pub global activate very_good_cli
-very_good create flutter_app agrishield_mobile --desc "AgriShield PH rice field monitoring app" --org "ph.agrishield"
+very_good create flutter_app mobile --desc "AgriShield PH rice field monitoring app" --org "ph.agrishield"
 ```
 
 This creates a more opinionated Flutter foundation with feature-oriented structure, Bloc/Cubit state management, testing conventions, localization, flavors, logging, linting, and GitHub Actions.
@@ -132,8 +133,8 @@ The selection is conditional: Very Good CLI is adopted as a disciplined foundati
 
 ```bash
 dart pub global activate very_good_cli
-very_good create flutter_app agrishield_mobile --desc "AgriShield PH rice field monitoring app" --org "ph.agrishield"
-cd agrishield_mobile
+very_good create flutter_app mobile --desc "AgriShield PH rice field monitoring app" --org "ph.agrishield"
+cd mobile
 flutter pub get
 dart pub global activate flutterfire_cli
 flutterfire configure
@@ -848,3 +849,461 @@ Demo Mode writes sample readings into the live device path.
 An agent adds a Laravel endpoint for telemetry without architecture approval.
 An agent introduces /sensor_readings while firmware writes /devices/{deviceCode}/readings.
 ```
+
+## Project Structure & Boundaries
+
+### Complete Project Directory Structure
+
+The repository is treated as the AgriShield product workspace. The existing Laravel scaffold is retained only for documentation, planning, and static artifacts; it is not part of the runtime MVP architecture.
+
+```text
+AgriShield/
+├─ README.md
+├─ .github/
+│  └─ workflows/
+│     ├─ flutter.yml
+│     └─ firmware.yml
+├─ apps/
+│  └─ mobile/
+│     ├─ android/
+│     ├─ integration_test/
+│     ├─ lib/
+│     │  ├─ app/
+│     │  │  ├─ app.dart
+│     │  │  ├─ router.dart
+│     │  │  └─ theme/
+│     │  ├─ core/
+│     │  │  ├─ firebase/
+│     │  │  ├─ models/
+│     │  │  │  ├─ data_source.dart
+│     │  │  │  ├─ field_status.dart
+│     │  │  │  └─ trust_state.dart
+│     │  │  ├─ repositories/
+│     │  │  └─ widgets/
+│     │  │     ├─ field_status_panel.dart
+│     │  │     ├─ last_updated_text.dart
+│     │  │     ├─ source_indicator.dart
+│     │  │     └─ trust_badge.dart
+│     │  ├─ features/
+│     │  │  ├─ dashboard/
+│     │  │  │  ├─ cubit/
+│     │  │  │  ├─ data/
+│     │  │  │  └─ view/
+│     │  │  ├─ demo_mode/
+│     │  │  │  ├─ cubit/
+│     │  │  │  ├─ data/
+│     │  │  │  └─ view/
+│     │  │  ├─ device_pairing/
+│     │  │  │  ├─ cubit/
+│     │  │  │  ├─ data/
+│     │  │  │  └─ view/
+│     │  │  ├─ history/
+│     │  │  │  ├─ cubit/
+│     │  │  │  ├─ data/
+│     │  │  │  └─ view/
+│     │  │  └─ settings/
+│     │  │     └─ view/
+│     │  └─ main.dart
+│     ├─ test/
+│     │  ├─ features/
+│     │  ├─ fixtures/
+│     │  │  └─ rtdb/
+│     │  │     ├─ device_not_found.json
+│     │  │     ├─ latest_malformed.json
+│     │  │     ├─ latest_missing_fields.json
+│     │  │     ├─ latest_stale.json
+│     │  │     ├─ latest_valid.json
+│     │  │     └─ readings_page.json
+│     │  ├─ golden/
+│     │  └─ repositories/
+│     ├─ analysis_options.yaml
+│     ├─ firebase.json
+│     ├─ pubspec.lock
+│     └─ pubspec.yaml
+├─ docs/
+│  ├─ architecture/
+│  │  ├─ boundaries.md
+│  │  ├─ firebase-rtdb-rules.json
+│  │  ├─ firebase-rtdb-schema.md
+│  │  ├─ firmware-contract.md
+│  │  ├─ mobile-architecture.md
+│  │  └─ project-structure.md
+│  ├─ planning/
+│  │  ├─ decisions/
+│  │  ├─ requirements/
+│  │  └─ roundtables/
+│  └─ runbooks/
+│     ├─ demo.md
+│     ├─ device-pairing.md
+│     ├─ firebase-setup.md
+│     ├─ setup-firmware.md
+│     ├─ setup-mobile.md
+│     └─ validation-checklist.md
+├─ firmware/
+│  └─ agri_sensor/
+│     ├─ include/
+│     │  └─ config.example.h
+│     ├─ src/
+│     ├─ test/
+│     ├─ test-fixtures/
+│     │  └─ sample_payloads/
+│     ├─ platformio.ini
+│     └─ README.md
+├─ tools/
+│  ├─ fixtures/
+│  └─ scripts/
+├─ _bmad/
+├─ _bmad-output/
+└─ .agents/
+```
+
+### Architectural Boundaries
+
+**Runtime Boundaries:**
+
+```text
+Runtime surfaces:
+1. Flutter Android app: apps/mobile
+2. ESP32 firmware: firmware/agri_sensor
+3. Firebase RTDB: external MVP backend
+
+Laravel/current workspace shell:
+- documentation
+- planning
+- static artifacts
+- no runtime behavior
+```
+
+The root `README.md` must include this repository map near the top so evaluators and team members do not mistake the Laravel scaffold for the MVP runtime app.
+
+**Flutter App Boundary:**
+
+`apps/mobile` owns:
+
+- Android UI and app shell
+- device-code pairing flow
+- local app state
+- Firebase RTDB reads through repositories
+- trust-state and field-status presentation
+- Demo Mode, isolated from live repositories
+- Flutter unit, widget, golden, and integration tests
+
+Flutter must not write live telemetry history. Flutter must not depend on Laravel endpoints or Laravel database state.
+
+**Firmware Boundary:**
+
+`firmware/agri_sensor` owns:
+
+- ESP32 sensor sampling
+- device-code identity/config
+- Wi-Fi and Firebase RTDB write behavior
+- writes to `/devices/{deviceCode}/latest`
+- writes to `/devices/{deviceCode}/readings/{readingId}`
+- firmware setup and flashing documentation
+
+Firmware must not depend on Flutter or Laravel.
+
+**Firebase Boundary:**
+
+Firebase RTDB owns:
+
+- live demo telemetry transport
+- canonical data shape
+- minimal no-auth MVP rules
+- device-scoped paths for the conceptual demo
+
+The RTDB schema and rules are documented under `docs/architecture` and mirrored by Flutter test fixtures.
+
+**Laravel / Planning Shell Boundary:**
+
+The existing Laravel workspace may contain:
+
+- BMad workflow files
+- planning artifacts
+- architecture documents
+- PRD and UX artifacts
+- static exported artifacts
+
+It must not contain MVP runtime telemetry APIs, queue/scheduler bridges, hidden database dependencies, or temporary endpoints for the Flutter app.
+
+### Requirements to Structure Mapping
+
+**Device Pairing:**
+
+- Feature: `apps/mobile/lib/features/device_pairing/`
+- Repository: `apps/mobile/lib/core/repositories/`
+- Tests: `apps/mobile/test/features/device_pairing/`
+- Runbook: `docs/runbooks/device-pairing.md`
+
+Supports the no-login device-code pairing flow.
+
+**Dashboard Monitoring:**
+
+- Feature: `apps/mobile/lib/features/dashboard/`
+- Shared widgets: `apps/mobile/lib/core/widgets/`
+- RTDB schema: `docs/architecture/firebase-rtdb-schema.md`
+- Fixtures: `apps/mobile/test/fixtures/rtdb/latest_valid.json`
+
+Supports latest readings, field status, trust state, source marker, and last-updated display.
+
+**History and Charts:**
+
+- Feature: `apps/mobile/lib/features/history/`
+- RTDB path: `/devices/{deviceCode}/readings/{readingId}`
+- Fixtures: `apps/mobile/test/fixtures/rtdb/readings_page.json`
+
+Supports reading history and recent trend views without global RTDB scans.
+
+**Status Classification and Trust Resolution:**
+
+- Core models: `apps/mobile/lib/core/models/`
+- Resolver location: `apps/mobile/lib/core/`
+- Tests: `apps/mobile/test/repositories/` and `apps/mobile/test/features/`
+- Schema/config docs: `docs/architecture/firebase-rtdb-schema.md`
+
+Flutter owns MVP classification and trust-state resolution, using valid RTDB config thresholds when available.
+
+**Demo Mode:**
+
+- Feature: `apps/mobile/lib/features/demo_mode/`
+- Fixtures: `apps/mobile/test/fixtures/rtdb/`
+- Runbook: `docs/runbooks/demo.md`
+
+Demo Mode uses separate data sources and must not call RTDB or mutate paired-device state.
+
+**ESP32 Telemetry:**
+
+- Firmware: `firmware/agri_sensor/`
+- Firmware docs: `firmware/agri_sensor/README.md`
+- Config template: `firmware/agri_sensor/include/config.example.h`
+- Payload samples: `firmware/agri_sensor/test-fixtures/sample_payloads/`
+- Contract: `docs/architecture/firmware-contract.md`
+
+Supports sensor sampling and RTDB writes for latest and historical readings.
+
+### Integration Points
+
+**Internal Communication:**
+
+- Views communicate with Cubits.
+- Cubits communicate with repositories.
+- Repositories communicate with RTDB data sources.
+- Demo repositories implement the same app contracts as live repositories.
+- Shared trust widgets consume typed app state only.
+
+**External Integrations:**
+
+- Flutter app integrates with Firebase RTDB through FlutterFire/Firebase plugins.
+- ESP32 integrates with Firebase RTDB through firmware library support.
+- GitHub hosts the workspace and optional minimal CI.
+- No Laravel runtime integration exists for MVP.
+
+**Data Flow:**
+
+```text
+ESP32 sensor read
+  -> firmware payload validation/config
+  -> Firebase RTDB /devices/{deviceCode}/latest
+  -> Firebase RTDB /devices/{deviceCode}/readings/{readingId}
+  -> Flutter ReadingRepository
+  -> DashboardCubit / HistoryCubit
+  -> trust-state and field-status UI
+```
+
+Demo flow:
+
+```text
+Demo fixture/scenario
+  -> DemoReadingRepository
+  -> same Cubit/UI contracts
+  -> persistent Demo Data source marker
+```
+
+### File Organization Patterns
+
+**Configuration Files:**
+
+- Flutter config lives under `apps/mobile/`.
+- Firmware config templates live under `firmware/agri_sensor/include/`.
+- Real firmware `config.h` stays ignored.
+- RTDB rules evidence lives under `docs/architecture/firebase-rtdb-rules.json`.
+
+**Source Organization:**
+
+- Runtime app source lives under `apps/mobile/lib/`.
+- Device firmware source lives under `firmware/agri_sensor/src/`.
+- Shared documentation lives under `docs/`.
+- Workflow/planning artifacts remain under `_bmad-output/` unless exported into docs.
+
+**Test Organization:**
+
+- Flutter unit/widget/golden tests live under `apps/mobile/test/`.
+- Flutter integration tests live under `apps/mobile/integration_test/`.
+- RTDB fixtures live under `apps/mobile/test/fixtures/rtdb/`.
+- Firmware tests live under `firmware/agri_sensor/test/`.
+- Demo validation lives under `docs/runbooks/validation-checklist.md`.
+
+**Asset Organization:**
+
+- Flutter assets stay within `apps/mobile/assets/` if needed.
+- Documentation images or static exports stay under `docs/` or `_bmad-output/`.
+- Firmware payload samples stay under `firmware/agri_sensor/test-fixtures/sample_payloads/`.
+
+### Development Workflow Integration
+
+**Development Server Structure:**
+
+No Laravel development server is required for MVP runtime.
+
+Flutter development runs from:
+
+```bash
+cd apps/mobile
+flutter pub get
+flutter run
+```
+
+Firmware development runs from:
+
+```bash
+cd firmware/agri_sensor
+pio run
+```
+
+or equivalent Arduino IDE workflow documented in `firmware/agri_sensor/README.md`.
+
+**Build Process Structure:**
+
+Flutter APK build:
+
+```bash
+cd apps/mobile
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+Firmware build:
+
+```bash
+cd firmware/agri_sensor
+pio run
+```
+
+**Deployment Structure:**
+
+The deployment package for defense consists of:
+
+- release APK from `apps/mobile`,
+- firmware loaded from `firmware/agri_sensor`,
+- Firebase RTDB demo project and rules,
+- `docs/runbooks/demo.md`,
+- `docs/runbooks/validation-checklist.md`,
+- fallback fixtures and manual RTDB payloads.
+
+### Structure Enforcement
+
+All agents must follow these boundaries:
+
+- New Flutter runtime code goes under `apps/mobile`.
+- New ESP32 runtime code goes under `firmware/agri_sensor`.
+- New architecture docs go under `docs/architecture`.
+- New defense/setup instructions go under `docs/runbooks`.
+- New planning material goes under `docs/planning` or `_bmad-output` as appropriate.
+- No MVP runtime dependency may be added to Laravel without an explicit architecture revision.
+
+## Architecture Validation Results
+
+### Coherence Validation ✅
+
+**Decision Compatibility:**
+All architectural decisions (Flutter mobile app, ESP32 firmware, Firebase RTDB) work cohesively together. They align perfectly with the mobile MVP requirement while explicitly addressing the legacy Laravel environment boundary.
+
+**Pattern Consistency:**
+Implementation patterns strongly support the decisions, enforcing strict separation of concerns (e.g., Firebase RTDB logic confined to repositories; UI only processing typed trust states). Naming and communication patterns are consistent.
+
+**Structure Alignment:**
+The project structure cleanly delineates the Flutter runtime (`apps/mobile`), ESP32 firmware (`firmware/agri_sensor`), and planning documentation (`docs/`), completely isolating the MVP runtime from the legacy Laravel shell.
+
+### Requirements Coverage Validation ✅
+
+**Epic/Feature Coverage:**
+The conceptual MVP scope is fully supported. Key flows like device pairing, dashboard monitoring, demo mode, and historical charting have mapped feature folders and data flow designs.
+
+**Functional Requirements Coverage:**
+All 25 FRs, including threshold-based classification, recommendations, in-app alerts, charts, and demo mode, are architecturally covered by the defined Flutter features and the schema contract.
+
+**Non-Functional Requirements Coverage:**
+NFRs are addressed via strong offline/stale state handling (TrustState resolver), Demo resilience (separate repository), and explicit boundaries for farmer-readable status communication.
+
+### Implementation Readiness Validation ✅
+
+**Decision Completeness:**
+Critical decisions, including the exact schema expected from the firmware and RTDB paths (`/devices/{deviceCode}/latest`), are well documented.
+
+**Structure Completeness:**
+A full repository directory tree is provided, detailing exactly where code, firmware, tests, and fixtures belong.
+
+**Pattern Completeness:**
+Naming, payload, communication, routing, and error handling patterns are thoroughly defined and enforceable.
+
+### Gap Analysis Results
+
+**Important Gaps:**
+- The Demo Runbook (`docs/runbooks/demo.md`) must be tested with physical hardware before the final defense to ensure presentation reliability.
+
+**Validation Issues Addressed:**
+- **Standardized Configuration:** Resolved a minor naming conflict by standardizing the Firebase rules file to `firebase-rtdb-rules.json` across both the schema documentation and project structure to prevent tooling errors.
+
+### Architecture Completeness Checklist
+
+**Requirements Analysis**
+- [x] Project context thoroughly analyzed
+- [x] Scale and complexity assessed
+- [x] Technical constraints identified
+- [x] Cross-cutting concerns mapped
+
+**Architectural Decisions**
+- [x] Critical decisions documented with versions
+- [x] Technology stack fully specified
+- [x] Integration patterns defined
+- [x] Performance considerations addressed
+
+**Implementation Patterns**
+- [x] Naming conventions established
+- [x] Structure patterns defined
+- [x] Communication patterns specified
+- [x] Process patterns documented
+
+**Project Structure**
+- [x] Complete directory structure defined
+- [x] Component boundaries established
+- [x] Integration points mapped
+- [x] Requirements to structure mapping complete
+
+### Architecture Readiness Assessment
+
+**Overall Status:** READY WITH MINOR GAPS
+
+**Confidence Level:** High
+
+**Key Strengths:**
+- Strict decoupling of live sensor data from the UI using TrustState models.
+- Dedicated Demo Mode ensuring presentation reliability.
+- Explicit boundaries protecting the MVP from the existing Laravel workspace.
+
+**Areas for Future Enhancement:**
+- Firebase Authentication and user accounts (post-MVP).
+- Automated firmware delivery/update pipeline.
+- Production CI/CD and store release signing.
+
+### Implementation Handoff
+
+**AI Agent Guidelines:**
+- Follow all architectural decisions exactly as documented.
+- Use implementation patterns consistently across all components.
+- Respect project structure and boundaries.
+- Refer to this document for all architectural questions.
+
+**First Implementation Priority:**
+Initialize the Flutter app using Very Good CLI: `very_good create flutter_app mobile --desc "AgriShield PH rice field monitoring app" --org "ph.agrishield"`
