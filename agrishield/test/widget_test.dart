@@ -1,10 +1,21 @@
-import 'package:agrishield/main.dart';
+import 'package:agrishield/app/app.dart';
+import 'package:agrishield/app/router.dart';
+import 'package:agrishield/app/theme/agri_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
+  late GoRouter router;
+
+  Future<void> pumpAgriShield(WidgetTester tester) async {
+    router = createAppRouter();
+    await tester.pumpWidget(AgriShieldApp(router: router));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('shows Apple Field Health dashboard and navigation', (tester) async {
-    await tester.pumpWidget(const AgriShieldApp());
+    await pumpAgriShield(tester);
 
     expect(find.text('Good Morning, Juan'), findsOneWidget);
     expect(find.text('Field Health'), findsOneWidget);
@@ -21,20 +32,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Juan dela Cruz'), findsOneWidget);
-    expect(find.text('Device Status'), findsOneWidget);
+    expect(find.text('Device offline'), findsNothing);
+    expect(find.text('Settings'), findsWidgets);
   });
 
   testWidgets('demo mode can be enabled and returned to live data', (tester) async {
-    await tester.pumpWidget(const AgriShieldApp());
+    await pumpAgriShield(tester);
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Demo Mode'));
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Demo Mode').last);
+    await tester.tap(find.text('Demo Mode'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('simulated readings'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Live'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Live'));
     await tester.pumpAndSettle();
 
@@ -42,8 +58,10 @@ void main() {
   });
 
   testWidgets('trust state cycle exposes recovery states', (tester) async {
-    await tester.pumpWidget(const AgriShieldApp());
+    await pumpAgriShield(tester);
 
+    await tester.ensureVisible(find.text('Cycle state'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Cycle state'));
     await tester.pumpAndSettle();
     expect(find.text('Needs attention'), findsOneWidget);
@@ -54,8 +72,34 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.home_rounded));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cycle state'));
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Refresh'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Refresh'));
     await tester.pumpAndSettle();
     expect(find.text('Critical field condition'), findsOneWidget);
+  });
+
+  testWidgets('router can render field and settings routes', (tester) async {
+    await pumpAgriShield(tester);
+
+    expect(find.text('Field Health'), findsOneWidget);
+
+    router.go('/settings');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Juan dela Cruz'), findsOneWidget);
+  });
+
+  testWidgets('semantic AgriShield theme tokens are available', (tester) async {
+    await pumpAgriShield(tester);
+
+    final materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    final tokens = materialApp.theme?.extension<AgriFieldTokens>();
+
+    expect(tokens, isNotNull);
+    expect(tokens!.statusOkay, const Color(0xFF34C759));
+    expect(find.text('Healthy'), findsOneWidget);
   });
 }
