@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgriShield UX Design Directions</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --surface: rgba(255, 255, 255, .82);
+      --surface-solid: #ffffff;
+      --subtle: #eef5ef;
+      --text: #1d1d1f;
+      --muted: #636366;
+      --line: rgba(60, 60, 67, .18);
+      --brand: #248a3d;
+      --brand-dark: #1f6f35;
+      --okay: #2e7d32;
+      --watch: #b06a00;
+      --critical: #d70015;
+      --low: #8e8e93;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: .5px solid var(--line);
+      background: rgba(245, 245, 247, .76);
+      backdrop-filter: saturate(180%) blur(22px);
+    }
+
+    .header-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 30px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .meta {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 20px;
+    }
+
+    .jump {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .jump a {
+      color: var(--brand-dark);
+      text-decoration: none;
+      border: .5px solid var(--line);
+      background: rgba(255, 255, 255, .72);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 13px;
+      line-height: 16px;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px 20px 56px;
+    }
+
+    .intro {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: .5px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      backdrop-filter: saturate(180%) blur(18px);
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 24px;
+      letter-spacing: 0;
+    }
+
+    .panel p, .panel li {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 22px;
+    }
+
+    .panel ul { margin: 10px 0 0; padding-left: 18px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+    }
+
+    .selected {
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: .9fr 1.1fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .selected-copy h2 {
+      margin-top: 0;
+      font-size: 28px;
+      line-height: 34px;
+      letter-spacing: 0;
+    }
+
+    .selected-copy p {
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 24px;
+    }
+
+    .principles {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .principle {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, .74);
+      border: .5px solid var(--line);
+    }
+
+    .principle strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 14px;
+      line-height: 18px;
+    }
+
+    .principle span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 18px;
+    }
+
+    .direction {
+      background: var(--surface);
+      border: .5px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .direction-info {
+      padding: 18px;
+      border-bottom: .5px solid var(--line);
+    }
+
+    .direction-info h2 {
+      margin: 0;
+      font-size: 19px;
+      line-height: 25px;
+      letter-spacing: 0;
+    }
+
+    .direction-info p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 21px;
+    }
+
+    .phone-wrap {
+      min-height: 720px;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,255,255,.9), transparent 42%),
+        linear-gradient(180deg, #e9ecef 0%, #dfe6de 100%);
+    }
+
+    .phone {
+      width: 360px;
+      min-height: 680px;
+      border-radius: 44px;
+      background: var(--bg);
+      border: 10px solid #111113;
+      overflow: hidden;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .28);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .island {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      width: 112px;
+      height: 32px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: #050506;
+      z-index: 2;
+    }
+
+    .island:after {
+      content: "";
+      position: absolute;
+      left: 22px;
+      top: 12px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #28d45b;
+      box-shadow: 0 0 0 2px rgba(40, 212, 91, .12);
+    }
+
+    .statusbar {
+      height: 42px;
+      padding: 14px 24px 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      color: #050506;
+    }
+
+    .appbar {
+      padding: 18px 20px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .field-title {
+      font-size: 18px;
+      line-height: 23px;
+      font-weight: 700;
+    }
+
+    .sync {
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--muted);
+      border: .5px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 8px;
+      background: rgba(255, 255, 255, .72);
+      white-space: nowrap;
+    }
+
+    .screen {
+      flex: 1;
+      padding: 0 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: .5px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      backdrop-filter: saturate(180%) blur(16px);
+    }
+
+    .status {
+      font-size: 31px;
+      line-height: 37px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 20px;
+      margin-top: 4px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 8px;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+      background: rgba(232, 245, 235, .88);
+      color: var(--brand-dark);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .row > * { flex: 1; }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+    }
+
+    .value {
+      margin-top: 4px;
+      font-size: 17px;
+      line-height: 22px;
+      font-weight: 700;
+    }
+
+    .bottom-nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      border-top: .5px solid var(--line);
+      background: rgba(255, 255, 255, .82);
+      backdrop-filter: saturate(180%) blur(20px);
+      padding: 8px 6px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .bottom-nav span {
+      display: block;
+      padding: 6px 2px;
+      border-radius: 12px;
+    }
+
+    .bottom-nav .active {
+      color: var(--brand-dark);
+      background: var(--subtle);
+      font-weight: 800;
+    }
+
+    .phone.selected-phone {
+      background: #f4f7f1;
+      border-radius: 42px;
+    }
+
+    .selected-phone .screen {
+      padding: 0 18px 88px;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .greeting {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0 2px;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 55% 35%, #ffd2a8 0 17%, transparent 18%),
+        linear-gradient(135deg, #304a32, #d39b5f);
+      border: 2px solid #fff;
+      box-shadow: 0 4px 16px rgba(0,0,0,.12);
+      flex: 0 0 auto;
+    }
+
+    .greeting-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .greeting-text strong {
+      display: block;
+      font-size: 17px;
+      line-height: 21px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .greeting-text span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 16px;
+    }
+
+    .weather {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.82);
+      border: .5px solid var(--line);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .field-photo {
+      min-height: 96px;
+      border-radius: 18px;
+      padding: 14px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      color: #fff;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.52)),
+        radial-gradient(circle at 24% 20%, rgba(255,255,255,.5), transparent 18%),
+        repeating-linear-gradient(112deg, #2d8a37 0 9px, #1f6f35 10px 18px, #5fa941 19px 24px);
+      box-shadow: 0 16px 34px rgba(31, 111, 53, .18);
+    }
+
+    .field-photo strong {
+      display: block;
+      font-size: 17px;
+      line-height: 21px;
+    }
+
+    .field-photo span {
+      display: block;
+      font-size: 11px;
+      line-height: 14px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .photo-pill {
+      border-radius: 999px;
+      background: rgba(255,255,255,.24);
+      padding: 7px 9px;
+      font-size: 11px;
+      line-height: 14px;
+      font-weight: 800;
+      backdrop-filter: blur(12px);
+    }
+
+    .health-card {
+      display: grid;
+      grid-template-columns: 1fr 98px;
+      gap: 12px;
+      align-items: center;
+      min-height: 118px;
+      background: rgba(255,255,255,.9);
+      box-shadow: 0 12px 28px rgba(0,0,0,.08);
+    }
+
+    .health-ring {
+      width: 86px;
+      height: 86px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      margin-left: auto;
+      background:
+        radial-gradient(circle, #fff 0 56%, transparent 57%),
+        conic-gradient(#34c759 0 87%, #d8f2df 87% 100%);
+    }
+
+    .health-ring strong {
+      font-size: 28px;
+      line-height: 28px;
+    }
+
+    .health-ring span {
+      display: block;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 11px;
+      text-align: center;
+      font-weight: 800;
+    }
+
+    .soft-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 12px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: #dcf8e3;
+      color: #1f8f3a;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .selected-phone .metric {
+      min-height: 102px;
+      box-shadow: 0 10px 22px rgba(0,0,0,.06);
+    }
+
+    .spark {
+      height: 28px;
+      margin: 2px 0 8px;
+      border-radius: 14px;
+      background:
+        linear-gradient(145deg, transparent 0 40%, rgba(52,199,89,.14) 41% 100%),
+        linear-gradient(150deg, transparent 0 28%, #34c759 29% 31%, transparent 32% 45%, #34c759 46% 49%, transparent 50% 63%, #34c759 64% 67%, transparent 68%);
+    }
+
+    .floating-nav {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 14px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 2px;
+      padding: 8px 6px;
+      border-radius: 24px;
+      background: rgba(255,255,255,.9);
+      border: .5px solid var(--line);
+      box-shadow: 0 12px 34px rgba(0,0,0,.13);
+      backdrop-filter: saturate(180%) blur(22px);
+      text-align: center;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .floating-nav span {
+      padding: 5px 2px;
+      border-radius: 16px;
+    }
+
+    .floating-nav .active {
+      color: #34c759;
+      font-weight: 800;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .metric {
+      min-height: 86px;
+    }
+
+    .tiny-chart {
+      height: 52px;
+      display: flex;
+      align-items: end;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .bar {
+      flex: 1;
+      border-radius: 4px 4px 0 0;
+      background: var(--brand);
+    }
+
+    .d1 .phone {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.82), transparent 220px),
+        #f5f5f7;
+    }
+    .d1 .hero {
+      border: 0;
+      background: rgba(255, 255, 255, .86);
+      box-shadow: 0 14px 36px rgba(176, 106, 0, .10);
+    }
+
+    .d1 .status { color: var(--watch); }
+
+    .d2 .phone { background: #f5f5f7; }
+    .d2 .hero {
+      background: linear-gradient(180deg, rgba(31, 111, 53, .96), rgba(36, 138, 61, .9));
+      color: #fff;
+      border-color: var(--brand-dark);
+    }
+    .d2 .hero .sub, .d2 .hero .label { color: rgba(255,255,255,.82); }
+    .d2 .hero .pill { background: rgba(255,255,255,.16); color: #fff; }
+
+    .d3 .screen {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+    }
+    .d3 .hero {
+      box-shadow: 0 18px 42px rgba(215, 0, 21, .13);
+    }
+    .d3 .status { color: var(--critical); }
+
+    .d4 .phone { background: #fbfbfd; }
+    .d4 .timeline {
+      position: relative;
+      padding-left: 18px;
+    }
+    .d4 .timeline:before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 12px;
+      bottom: 12px;
+      width: 2px;
+      background: var(--line);
+    }
+    .d4 .event {
+      position: relative;
+      margin-bottom: 10px;
+    }
+    .d4 .event:before {
+      content: "";
+      position: absolute;
+      left: -15px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--brand);
+    }
+
+    .d5 .phone { background: #f5f5f7; }
+    .d5 .hero {
+      background: rgba(255,255,255,.92);
+      box-shadow: inset 0 0 0 1px rgba(47,107,63,.08);
+    }
+    .d5 .status { color: var(--brand-dark); }
+
+    .d6 .phone { background: #f5f5f7; }
+    .d6 .hero {
+      padding: 0;
+      overflow: hidden;
+    }
+    .d6 .map {
+      height: 116px;
+      background:
+        linear-gradient(90deg, rgba(36,138,61,.13) 1px, transparent 1px),
+        linear-gradient(rgba(36,138,61,.13) 1px, transparent 1px),
+        #eaf3ea;
+      background-size: 28px 28px;
+      border-bottom: 1px solid var(--line);
+    }
+    .d6 .map-copy { padding: 14px; }
+
+    .d7 .phone { background: #ffffff; }
+    .d7 .appbar {
+      background: rgba(29, 29, 31, .94);
+      color: #fff;
+    }
+    .d7 .sync { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.22); }
+    .d7 .card {
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+    }
+
+    .d8 .phone { background: #f6f8f5; }
+    .d8 .hero {
+      background: rgba(255, 247, 232, .9);
+      border-color: rgba(176, 106, 0, .24);
+    }
+    .d8 .status { color: var(--watch); }
+
+    .compare {
+      margin-top: 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: .5px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      padding: 12px;
+      font-size: 14px;
+      line-height: 20px;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--subtle);
+      color: var(--brand-dark);
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    @media (max-width: 900px) {
+      .intro, .grid, .selected { grid-template-columns: 1fr; }
+      .header-inner { align-items: flex-start; flex-direction: column; }
+      .jump { justify-content: flex-start; }
+    }
+
+    @media (max-width: 430px) {
+      main { padding-left: 10px; padding-right: 10px; }
+      .phone-wrap { padding: 12px; min-height: 660px; }
+      .phone { width: 100%; min-height: 650px; border-width: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div>
+        <h1>AgriShield PH UX Design Directions</h1>
+        <p class="meta">Apple-inspired mobile directions for a calm, precise field-status experience.</p>
+      </div>
+      <nav class="jump" aria-label="Design directions">
+        <a href="#selected">Selected Style</a>
+        <a href="#d1">1 Signal First</a>
+        <a href="#d2">2 Field Command</a>
+        <a href="#d3">3 Alert Ready</a>
+        <a href="#d4">4 Timeline Calm</a>
+        <a href="#d5">5 Notebook</a>
+        <a href="#d6">6 Field Map</a>
+        <a href="#d7">7 Utility</a>
+        <a href="#d8">8 Demo-Safe</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div class="panel">
+        <h2>Apple-Inspired Evaluation Frame</h2>
+        <p>Choose the direction that best answers the farmer's first question: is the field okay, what changed, how fresh is the data, and what should be checked next?</p>
+        <ul>
+          <li><strong>Clarity:</strong> readable text, plain actions, precise status labels.</li>
+          <li><strong>Deference:</strong> interface surfaces support field content instead of decorating it.</li>
+          <li><strong>Depth:</strong> layered cards and motion-ready hierarchy show what is primary.</li>
+          <li><strong>Consistency:</strong> familiar mobile navigation, repeated components, predictable states.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h2>Recommended Direction</h2>
+        <p>Use Direction 1 as the base, borrow Direction 3 for alert escalation, Direction 4 for history, and Direction 8 for Demo Mode. Keep the Apple-inspired restraint: fewer competing colors, more whitespace, clear typography, and surfaces that feel quiet until the field state needs attention.</p>
+      </div>
+    </section>
+
+    <section class="selected direction" id="selected">
+      <div class="direction-info selected-copy">
+        <h2>Selected Style: Apple Field Health</h2>
+        <p>This direction follows the reference screens: iPhone-native rhythm, soft off-white background, bright but restrained health green, large readable headings, rounded cards, crop imagery, circular health scoring, and a floating bottom tab bar.</p>
+        <p>The key Apple principle is restraint. The UI feels premium because it removes noise: one main visual moment, one health summary, then compact sensor evidence. The hierarchy must stay action-first: status, reason, recommended action, then history.</p>
+        <p>Apple Field Health should feel calm and polished, but never decorative. If the field is critical, the alert beats the photo. If the health score changes, the app explains which reading caused it. If data is stale or offline, the interface says so clearly.</p>
+        <div class="principles">
+          <div class="principle"><strong>Clarity</strong><span>Big titles, plain labels, short status phrases, and a single primary answer per screen.</span></div>
+          <div class="principle"><strong>Deference</strong><span>The rice field, health score, alert content, and advice are the heroes. Chrome stays quiet.</span></div>
+          <div class="principle"><strong>Depth</strong><span>Layered cards, floating tab bar, circular score, and image cards create hierarchy without clutter.</span></div>
+          <div class="principle"><strong>Consistency</strong><span>Every screen uses the same title scale, pill filters, white cards, green active state, and bottom navigation behavior.</span></div>
+          <div class="principle"><strong>Implementation</strong><span>Build as reusable Flutter components: app shell, field hero, health ring, metric cards, alert filters, advice cards, history chart, and settings profile.</span></div>
+        </div>
+      </div>
+      <div class="phone-wrap">
+        <div class="phone selected-phone">
+          <div class="island"></div>
+          <div class="statusbar"><span>9:41</span><span>5G  88%</span></div>
+          <div class="screen">
+            <div class="greeting">
+              <div class="avatar" aria-hidden="true"></div>
+              <div class="greeting-text">
+                <strong>Good Morning, Juan</strong>
+                <span>Sitio Maligaya Rice Farm</span>
+              </div>
+              <div class="weather">28 C</div>
+            </div>
+
+            <div class="field-photo">
+              <div>
+                <span>LIVE VIEW</span>
+                <strong>Tillering Stage</strong>
+              </div>
+              <div class="photo-pill">2.5 Hectares</div>
+            </div>
+
+            <div class="card health-card">
+              <div>
+                <div class="field-title">Field Health</div>
+                <div class="sub">Updated 2 min ago</div>
+                <div class="soft-chip">HEALTHY</div>
+              </div>
+              <div class="health-ring">
+                <div>
+                  <strong>87</strong>
+                  <span>HEALTH</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="metrics">
+              <div class="card metric">
+                <div class="spark"></div>
+                <div class="value">68 <span class="label">%</span></div>
+                <div class="sub">Soil Moisture</div>
+              </div>
+              <div class="card metric">
+                <div class="spark"></div>
+                <div class="value">12 <span class="label">cm</span></div>
+                <div class="sub">Water Level</div>
+              </div>
+              <div class="card metric">
+                <div class="spark" style="background:linear-gradient(150deg, transparent 0 28%, #ff9500 29% 31%, transparent 32% 45%, #ff9500 46% 49%, transparent 50% 63%, #ff9500 64% 67%, transparent 68%)"></div>
+                <div class="value">31 <span class="label">C</span></div>
+                <div class="sub">Temperature</div>
+              </div>
+              <div class="card metric">
+                <div class="spark"></div>
+                <div class="value">74 <span class="label">%</span></div>
+                <div class="sub">Humidity</div>
+              </div>
+            </div>
+          </div>
+          <div class="floating-nav">
+            <span class="active">Home</span>
+            <span>Alerts</span>
+            <span>Advice</span>
+            <span>History</span>
+            <span>Profile</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="direction d1" id="d1">
+        <div class="direction-info">
+          <h2>1. Signal First Dashboard</h2>
+          <p>Best default candidate. Apple-style clarity, restrained surfaces, and one primary status layer with supporting evidence below.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">North Rice Field</div><div class="sync">Updated 12m</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">Medium confidence</span>
+                <div class="status">Needs Attention</div>
+                <div class="sub">Soil moisture is low. Check irrigation when possible.</div>
+              </div>
+              <div class="row">
+                <div class="card"><div class="label">Main concern</div><div class="value">Soil moisture low</div></div>
+                <div class="card"><div class="label">Next check</div><div class="value">Inspect today</div></div>
+              </div>
+              <div class="metrics">
+                <div class="card metric"><div class="label">Soil</div><div class="value">32%</div><div class="sub">Below target</div></div>
+                <div class="card metric"><div class="label">Water</div><div class="value">6 cm</div><div class="sub">Acceptable</div></div>
+                <div class="card metric"><div class="label">Temp</div><div class="value">31 C</div><div class="sub">Normal</div></div>
+                <div class="card metric"><div class="label">Humidity</div><div class="value">76%</div><div class="sub">Normal</div></div>
+              </div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d2" id="d2">
+        <div class="direction-info">
+          <h2>2. Field Command Panel</h2>
+          <p>More authoritative and presenter-friendly. Strong header creates confidence but can overpower the content if used everywhere.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">AgriShield PH</div><div class="sync">Online</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">Live field signal</span>
+                <div class="status">Okay</div>
+                <div class="sub">No immediate concern detected. Continue routine monitoring.</div>
+              </div>
+              <div class="card"><div class="label">Next check</div><div class="value">Review again this afternoon</div></div>
+              <div class="row">
+                <div class="card"><div class="label">Device</div><div class="value">ESP32 online</div></div>
+                <div class="card"><div class="label">Last alert</div><div class="value">None today</div></div>
+              </div>
+              <div class="metrics">
+                <div class="card metric"><div class="label">Soil</div><div class="value">47%</div></div>
+                <div class="card metric"><div class="label">Water</div><div class="value">8 cm</div></div>
+              </div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d3" id="d3">
+        <div class="direction-info">
+          <h2>3. Alert-Ready Field Check</h2>
+          <p>Optimized for abnormal states. Uses depth and focused contrast to make the next action unmistakable without flooding the app red.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">North Rice Field</div><div class="sync">Updated 4m</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">High confidence</span>
+                <div class="status">Critical</div>
+                <div class="sub">Water level is very low. Check field water now.</div>
+              </div>
+              <div class="card"><div class="label">Active alert</div><div class="value">Water level critical</div><div class="sub">Open alert details for threshold and reading.</div></div>
+              <div class="row">
+                <div class="card"><div class="label">Water</div><div class="value">2 cm</div></div>
+                <div class="card"><div class="label">Soil</div><div class="value">28%</div></div>
+              </div>
+              <div class="card"><div class="label">Recommendation</div><div class="value">Inspect irrigation source</div></div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d4" id="d4">
+        <div class="direction-info">
+          <h2>4. Timeline Calm</h2>
+          <p>Turns history into the main support pattern. Good Apple-style storytelling for stale data and condition changes over time.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">Field Timeline</div><div class="sync">Delayed</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">Low confidence</span>
+                <div class="status">No Recent Data</div>
+                <div class="sub">Latest reading is old. Check field before assuming conditions are okay.</div>
+              </div>
+              <div class="card timeline">
+                <div class="event"><div class="label">2h ago</div><div class="value">Okay reading received</div></div>
+                <div class="event"><div class="label">Yesterday</div><div class="value">Soil moisture warning</div></div>
+                <div class="event"><div class="label">2 days ago</div><div class="value">Normal field status</div></div>
+              </div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d5" id="d5">
+        <div class="direction-info">
+          <h2>5. Field Notebook</h2>
+          <p>Warm, practical, and least technical. The plain-language tone works, though the visual direction may feel less like a live app.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">Today in the Field</div><div class="sync">Updated 18m</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">Field note</span>
+                <div class="status">Needs Attention</div>
+                <div class="sub">The field may be drying. Check soil and water level before evening.</div>
+              </div>
+              <div class="card"><div class="label">Plain summary</div><div class="value">Moisture is lower than expected</div></div>
+              <div class="card"><div class="label">What to do</div><div class="value">Check irrigation path</div></div>
+              <div class="metrics">
+                <div class="card metric"><div class="label">Soil</div><div class="value">Dry</div></div>
+                <div class="card metric"><div class="label">Water</div><div class="value">Enough</div></div>
+              </div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d6" id="d6">
+        <div class="direction-info">
+          <h2>6. Field Map Surface</h2>
+          <p>Adds a lightweight field visual. Visually attractive, but it suggests spatial precision the one-device MVP may not actually have.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">North Rice Field</div><div class="sync">Online</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <div class="map" aria-hidden="true"></div>
+                <div class="map-copy">
+                  <span class="pill">High confidence</span>
+                  <div class="status">Okay</div>
+                  <div class="sub">All tracked readings are within prototype range.</div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="card"><div class="label">Main concern</div><div class="value">None</div></div>
+                <div class="card"><div class="label">Next check</div><div class="value">Routine</div></div>
+              </div>
+              <div class="card"><div class="label">Trend</div><div class="tiny-chart"><span class="bar" style="height:72%"></span><span class="bar" style="height:64%"></span><span class="bar" style="height:66%"></span><span class="bar" style="height:70%"></span></div></div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d7" id="d7">
+        <div class="direction-info">
+          <h2>7. Dense Utility Console</h2>
+          <p>Fast scanning for repeated use. Useful for internal testing, but least aligned with Apple-style deference and calm hierarchy.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">Dashboard</div><div class="sync">Updated 6m</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">Medium confidence</span>
+                <div class="status">Needs Attention</div>
+                <div class="sub">Soil moisture below target.</div>
+              </div>
+              <div class="card"><div class="label">Status row</div><div class="value">Warning | Soil 33% | Water 7 cm</div></div>
+              <div class="card"><div class="label">Action</div><div class="value">Check irrigation</div></div>
+              <div class="card"><div class="label">Recent values</div><div class="value">31 C, 74% humidity</div></div>
+              <div class="card"><div class="label">Latest alert</div><div class="value">Moisture warning, 6m ago</div></div>
+            </div>
+            <div class="bottom-nav"><span class="active">Dashboard</span><span>Alerts</span><span>History</span><span>More</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="direction d8" id="d8">
+        <div class="direction-info">
+          <h2>8. Demo-Safe Prototype</h2>
+          <p>Best for project defense backup. Clear source labeling keeps simulated data honest while preserving the farmer workflow.</p>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="appbar"><div class="field-title">Demo Mode</div><div class="sync">Simulated</div></div>
+            <div class="screen">
+              <div class="card hero">
+                <span class="pill">Demo reading</span>
+                <div class="status">Needs Attention</div>
+                <div class="sub">Simulated soil moisture warning for evaluation.</div>
+              </div>
+              <div class="row">
+                <div class="card"><div class="label">Scenario</div><div class="value">Warning</div></div>
+                <div class="card"><div class="label">Source</div><div class="value">Demo</div></div>
+              </div>
+              <div class="card"><div class="label">Same farmer-facing action</div><div class="value">Check irrigation</div></div>
+              <div class="metrics">
+                <div class="card metric"><div class="label">Normal</div><div class="value">Try</div></div>
+                <div class="card metric"><div class="label">Critical</div><div class="value">Try</div></div>
+              </div>
+            </div>
+            <div class="bottom-nav"><span>Dashboard</span><span>Alerts</span><span>History</span><span class="active">More</span></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="compare panel">
+      <h2>Comparison</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Direction</th>
+            <th>Best For</th>
+            <th>Risk</th>
+            <th>Recommended Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1. Signal First</td><td>Primary farmer dashboard</td><td>Needs disciplined sensor-card density</td><td>Use as the Apple-inspired base direction</td></tr>
+          <tr><td>2. Field Command</td><td>Confident product feel</td><td>Can feel too branded and less deferential</td><td>Borrow confidence, not the full treatment</td></tr>
+          <tr><td>3. Alert-Ready</td><td>Critical and warning states</td><td>Too intense for normal state</td><td>Use for alert escalation pattern</td></tr>
+          <tr><td>4. Timeline Calm</td><td>History and stale data trust</td><td>Weak as first dashboard screen</td><td>Use for History screen</td></tr>
+          <tr><td>5. Field Notebook</td><td>Plain-language farmer trust</td><td>May underplay live monitoring</td><td>Borrow copy tone and warmth</td></tr>
+          <tr><td>6. Field Map</td><td>Future zoned fields</td><td>Speculative for one-device MVP</td><td>Defer unless mockups already require it</td></tr>
+          <tr><td>7. Utility Console</td><td>Testing and repeat scanning</td><td>Too dense for Apple-style clarity</td><td>Use only for internal/debug surfaces</td></tr>
+          <tr><td>8. Demo-Safe</td><td>Project defense and simulated states</td><td>Should not become the default app feel</td><td>Use specifically for Demo Mode</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>
