@@ -1,6 +1,5 @@
-import 'package:agrishield/app/app.dart';
-import 'package:flutter/material.dart';
+import 'package:agrishield/bootstrap.dart';
 
 void main() {
-  runApp(const AgriShieldApp());
+  bootstrapAgriShield();
 }

@@ -100,21 +100,39 @@ class AgriFieldTokens extends ThemeExtension<AgriFieldTokens> {
 
     return AgriFieldTokens(
       statusOkay: Color.lerp(statusOkay, other.statusOkay, t)!,
-      statusNeedsAttention:
-          Color.lerp(statusNeedsAttention, other.statusNeedsAttention, t)!,
+      statusNeedsAttention: Color.lerp(
+        statusNeedsAttention,
+        other.statusNeedsAttention,
+        t,
+      )!,
       statusCritical: Color.lerp(statusCritical, other.statusCritical, t)!,
-      confidenceRecent:
-          Color.lerp(confidenceRecent, other.confidenceRecent, t)!,
-      confidenceDelayed:
-          Color.lerp(confidenceDelayed, other.confidenceDelayed, t)!,
+      confidenceRecent: Color.lerp(
+        confidenceRecent,
+        other.confidenceRecent,
+        t,
+      )!,
+      confidenceDelayed: Color.lerp(
+        confidenceDelayed,
+        other.confidenceDelayed,
+        t,
+      )!,
       confidenceStale: Color.lerp(confidenceStale, other.confidenceStale, t)!,
-      confidenceNoConnection:
-          Color.lerp(confidenceNoConnection, other.confidenceNoConnection, t)!,
-      surfaceAppBackground:
-          Color.lerp(surfaceAppBackground, other.surfaceAppBackground, t)!,
+      confidenceNoConnection: Color.lerp(
+        confidenceNoConnection,
+        other.confidenceNoConnection,
+        t,
+      )!,
+      surfaceAppBackground: Color.lerp(
+        surfaceAppBackground,
+        other.surfaceAppBackground,
+        t,
+      )!,
       surfaceCard: Color.lerp(surfaceCard, other.surfaceCard, t)!,
-      surfaceStatusCard:
-          Color.lerp(surfaceStatusCard, other.surfaceStatusCard, t)!,
+      surfaceStatusCard: Color.lerp(
+        surfaceStatusCard,
+        other.surfaceStatusCard,
+        t,
+      )!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textHelper: Color.lerp(textHelper, other.textHelper, t)!,
