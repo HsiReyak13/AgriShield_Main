@@ -1,3 +1,0 @@
-{
-  "workflow.on_complete": ""
-}
