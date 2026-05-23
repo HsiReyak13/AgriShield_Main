@@ -6,7 +6,7 @@ class DeviceCodeKeyEncoder {
   const DeviceCodeKeyEncoder();
 
   String normalize(String code) {
-    return code.trim().replaceAll(RegExp(r'[\s-]+'), '').toUpperCase();
+    return code.trim().replaceAll(RegExp(r'[.#$\[\]\s-]+'), '').toUpperCase();
   }
 
   String encode(String code) {
