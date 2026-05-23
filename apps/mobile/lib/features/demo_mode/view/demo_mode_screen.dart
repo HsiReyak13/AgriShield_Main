@@ -8,7 +8,8 @@ class DemoModeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const AppPlaceholderScreen(
       title: 'Demo Mode',
-      message: 'Use simulated field readings when live hardware is unavailable.',
+      message:
+          'Use simulated field readings when live hardware is unavailable.',
     );
   }
 }

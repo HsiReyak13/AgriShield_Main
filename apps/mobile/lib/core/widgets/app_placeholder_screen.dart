@@ -1,5 +1,6 @@
 import 'package:agrishield/app/theme/agri_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class AppPlaceholderScreen extends StatelessWidget {
   const AppPlaceholderScreen({
@@ -25,7 +26,13 @@ class AppPlaceholderScreen extends StatelessWidget {
               Text(message, style: Theme.of(context).textTheme.bodyLarge),
               const Spacer(),
               FilledButton.icon(
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    context.go('/field');
+                  }
+                },
                 icon: const Icon(Icons.arrow_back_rounded),
                 label: const Text('Back'),
                 style: FilledButton.styleFrom(
