@@ -3,20 +3,20 @@ import 'dart:math' as math;
 import 'package:agrishield/app/theme/agri_theme.dart';
 import 'package:agrishield/app/theme/agri_tokens.dart';
 import 'package:agrishield/core/models/trust_state.dart';
+import 'package:agrishield/core/repositories/device_connection_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-enum AppTab { home, alerts, advice, history, settings }
+enum AppTab { dashboard, alerts, history, more }
 
 enum AlertSeverity { critical, warning, attention, normal }
 
 AppTab appTabFromRoute(String? tab) {
   return switch (tab) {
     'alerts' => AppTab.alerts,
-    'advice' => AppTab.advice,
     'history' => AppTab.history,
-    'settings' => AppTab.settings,
-    _ => AppTab.home,
+    'more' || 'settings' => AppTab.more,
+    _ => AppTab.dashboard,
   };
 }
 
@@ -208,12 +208,14 @@ class MockAgriData {
 
 class AgriShell extends StatefulWidget {
   const AgriShell({
-    this.initialTab = AppTab.home,
+    required this.deviceConnectionRepository,
+    this.initialTab = AppTab.dashboard,
     this.initialTrustState = TrustState.healthy,
     this.fieldId,
     super.key,
   });
 
+  final DeviceConnectionRepository deviceConnectionRepository;
   final AppTab initialTab;
   final TrustState initialTrustState;
   final String? fieldId;
@@ -236,19 +238,16 @@ class _AgriShellState extends State<AgriShell> {
     final modeQuery = mode == null ? '' : '&mode=$mode';
 
     switch (tab) {
-      case AppTab.home:
+      case AppTab.dashboard:
         context.go(mode == null ? '/field' : '/field?mode=$mode');
         return;
       case AppTab.alerts:
         context.go('/field?tab=alerts$modeQuery');
         return;
-      case AppTab.advice:
-        context.go('/field?tab=advice$modeQuery');
-        return;
       case AppTab.history:
         context.go('/field?tab=history$modeQuery');
         return;
-      case AppTab.settings:
+      case AppTab.more:
         context.go(mode == null ? '/settings' : '/settings?mode=$mode');
         return;
     }
@@ -278,7 +277,7 @@ class _AgriShellState extends State<AgriShell> {
   void _returnToLiveData() {
     setState(() => _trustState = TrustState.healthy);
     if (GoRouterState.of(context).uri.queryParameters['mode'] == 'demo') {
-      final tab = _tab == AppTab.home ? null : _tab.name;
+      final tab = _tab == AppTab.dashboard ? null : _tab.name;
       context.go(tab == null ? '/field' : '/field?tab=$tab');
     }
   }
@@ -297,12 +296,12 @@ class _AgriShellState extends State<AgriShell> {
                   onCycleState: _cycleTrustState,
                   onReturnToLiveData: _returnToLiveData,
                   onOpenAlerts: () => _selectTab(AppTab.alerts),
-                  onOpenAdvice: () => _selectTab(AppTab.advice),
+                  onOpenAdvice: () => _selectTab(AppTab.more),
                 ),
                 const AlertsScreen(),
-                const AdviceScreen(),
                 const HistoryScreen(),
                 SettingsScreen(
+                  deviceConnectionRepository: widget.deviceConnectionRepository,
                   trustState: _trustState,
                   onCycleState: _cycleTrustState,
                   onEnableDemoMode: _enableDemoMode,
@@ -987,8 +986,17 @@ class AdviceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PageFrame(
-      title: 'Advice',
+    return PageFrame(title: 'Advice', children: const [AdvicePanel()]);
+  }
+}
+
+class AdvicePanel extends StatelessWidget {
+  const AdvicePanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
           padding: const EdgeInsets.all(20),
@@ -1309,6 +1317,7 @@ class HistoryReadingCard extends StatelessWidget {
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
+    required this.deviceConnectionRepository,
     required this.trustState,
     required this.onCycleState,
     required this.onEnableDemoMode,
@@ -1316,6 +1325,7 @@ class SettingsScreen extends StatelessWidget {
     super.key,
   });
 
+  final DeviceConnectionRepository deviceConnectionRepository;
   final TrustState trustState;
   final VoidCallback onCycleState;
   final VoidCallback onEnableDemoMode;
@@ -1324,7 +1334,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PageFrame(
-      title: 'Settings',
+      title: 'More',
       children: [
         const ProfileCard(),
         const SizedBox(height: 24),
@@ -1336,6 +1346,14 @@ class SettingsScreen extends StatelessWidget {
           onEnableDemoMode: onEnableDemoMode,
           onReturnToLiveData: onReturnToLiveData,
         ),
+        const SizedBox(height: 12),
+        LiveDeviceConnectionCard(
+          deviceConnectionRepository: deviceConnectionRepository,
+        ),
+        const SizedBox(height: 24),
+        SectionLabel('Field Advice'),
+        const SizedBox(height: 10),
+        const AdvicePanel(),
         const SizedBox(height: 24),
         SectionLabel('Language'),
         const SizedBox(height: 10),
@@ -1362,6 +1380,117 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: 10),
         const FarmInfoCard(),
       ],
+    );
+  }
+}
+
+class LiveDeviceConnectionCard extends StatefulWidget {
+  const LiveDeviceConnectionCard({
+    required this.deviceConnectionRepository,
+    super.key,
+  });
+
+  final DeviceConnectionRepository deviceConnectionRepository;
+
+  @override
+  State<LiveDeviceConnectionCard> createState() =>
+      _LiveDeviceConnectionCardState();
+}
+
+class _LiveDeviceConnectionCardState extends State<LiveDeviceConnectionCard> {
+  bool _isClearing = false;
+
+  Future<void> _clearConnection() async {
+    setState(() => _isClearing = true);
+    await widget.deviceConnectionRepository.clearConnection();
+    if (!mounted) return;
+    context.go('/pair');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: widget.deviceConnectionRepository.readSavedConnection(),
+      builder: (context, snapshot) {
+        final connection = snapshot.data;
+        if (connection == null) {
+          return SoftCard(
+            child: Row(
+              children: [
+                const MetricIcon(
+                  icon: Icons.sensors_off_outlined,
+                  color: AgriTheme.muted,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No live device connected',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.go('/pair'),
+                  child: const Text('Connect Device'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return SoftCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const MetricIcon(
+                    icon: Icons.sensors_rounded,
+                    color: AgriTheme.fieldGreen,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Live Device Connected',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${connection.deviceCode} - ${connection.deviceId}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Farm ${connection.farmId}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: _isClearing ? null : _clearConnection,
+                icon: _isClearing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      )
+                    : const Icon(Icons.link_off_rounded),
+                label: Text(_isClearing ? 'Clearing...' : 'Change device'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1737,10 +1866,10 @@ class FloatingTabBar extends StatelessWidget {
         child: Row(
           children: [
             NavItem(
-              tab: AppTab.home,
+              tab: AppTab.dashboard,
               currentTab: currentTab,
-              label: 'Home',
-              icon: Icons.home_rounded,
+              label: 'Dashboard',
+              icon: Icons.dashboard_rounded,
               onChanged: onChanged,
             ),
             NavItem(
@@ -1751,13 +1880,6 @@ class FloatingTabBar extends StatelessWidget {
               onChanged: onChanged,
             ),
             NavItem(
-              tab: AppTab.advice,
-              currentTab: currentTab,
-              label: 'Advice',
-              icon: Icons.eco_outlined,
-              onChanged: onChanged,
-            ),
-            NavItem(
               tab: AppTab.history,
               currentTab: currentTab,
               label: 'History',
@@ -1765,10 +1887,10 @@ class FloatingTabBar extends StatelessWidget {
               onChanged: onChanged,
             ),
             NavItem(
-              tab: AppTab.settings,
+              tab: AppTab.more,
               currentTab: currentTab,
-              label: 'Settings',
-              icon: Icons.settings_outlined,
+              label: 'More',
+              icon: Icons.more_horiz_rounded,
               onChanged: onChanged,
             ),
           ],

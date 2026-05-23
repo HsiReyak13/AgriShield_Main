@@ -13,6 +13,44 @@ class DeviceConnection {
   final String farmId;
   final DataSource dataSource;
 
+  Map<String, String> toStorageJson() {
+    return {
+      'deviceCode': deviceCode,
+      'deviceId': deviceId,
+      'farmId': farmId,
+      'dataSource': dataSource.name,
+    };
+  }
+
+  static DeviceConnection? fromStorageJson(Map<String, Object?> json) {
+    final deviceCode = json['deviceCode'];
+    final deviceId = json['deviceId'];
+    final farmId = json['farmId'];
+    final dataSourceName = json['dataSource'];
+
+    if (deviceCode is! String ||
+        deviceCode.trim().isEmpty ||
+        deviceId is! String ||
+        deviceId.trim().isEmpty ||
+        farmId is! String ||
+        farmId.trim().isEmpty ||
+        dataSourceName is! String) {
+      return null;
+    }
+
+    final dataSource = DataSource.values
+        .where((source) => source.name == dataSourceName)
+        .firstOrNull;
+    if (dataSource == null) return null;
+
+    return DeviceConnection(
+      deviceCode: deviceCode,
+      deviceId: deviceId,
+      farmId: farmId,
+      dataSource: dataSource,
+    );
+  }
+
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
