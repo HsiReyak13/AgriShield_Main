@@ -10,6 +10,8 @@ class SensorCondition {
     required this.unit,
     required this.thresholdContext,
     required this.concern,
+    required this.deviationScore,
+    required this.actionRecommendation,
   });
 
   final String sensorKey;
@@ -19,6 +21,8 @@ class SensorCondition {
   final String unit;
   final String thresholdContext;
   final String concern;
+  final double deviationScore;
+  final FieldRecommendation actionRecommendation;
 }
 
 class FieldClassification {
@@ -34,9 +38,10 @@ class FieldClassification {
   final List<SensorCondition> conditions;
   final FieldRecommendation recommendation;
 
-  SensorCondition conditionFor(String sensorKey) {
-    return conditions.singleWhere(
-      (condition) => condition.sensorKey == sensorKey,
-    );
+  SensorCondition? conditionFor(String sensorKey) {
+    for (final condition in conditions) {
+      if (condition.sensorKey == sensorKey) return condition;
+    }
+    return null;
   }
 }

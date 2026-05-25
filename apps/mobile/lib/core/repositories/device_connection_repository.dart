@@ -122,7 +122,7 @@ class FirebaseDeviceConnectionRepository implements DeviceConnectionRepository {
 
     try {
       final payload = await _lookupDataSource.readDeviceCode(
-        _keyEncoder.encode(normalizedCode),
+        _keyEncoder.hashNormalized(normalizedCode),
       );
       if (payload == null) {
         return const DeviceConnectionResult.failure(

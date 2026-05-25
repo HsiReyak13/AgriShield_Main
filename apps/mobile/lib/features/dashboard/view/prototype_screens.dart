@@ -2,47 +2,32 @@ import 'dart:math' as math;
 
 import 'package:agrishield/app/theme/agri_theme.dart';
 import 'package:agrishield/app/theme/agri_tokens.dart';
+import 'package:agrishield/core/logic/field_status_classifier.dart';
+import 'package:agrishield/core/models/device_connection.dart';
+import 'package:agrishield/core/models/field_status.dart';
 import 'package:agrishield/core/models/trust_state.dart';
+import 'package:agrishield/core/repositories/alert_repository.dart';
 import 'package:agrishield/core/repositories/device_connection_repository.dart';
+import 'package:agrishield/core/repositories/live_telemetry_repository.dart';
+import 'package:agrishield/features/alerts/logic/alert_generator.dart';
+import 'package:agrishield/features/alerts/presentation/screens/alerts_screen.dart'
+    as alerts_ui;
+import 'package:agrishield/features/dashboard/cubit/dashboard_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-enum AppTab { dashboard, alerts, history, more }
+enum AppTab { home, alerts, advice, history, settings }
 
 enum AlertSeverity { critical, warning, attention, normal }
 
 AppTab appTabFromRoute(String? tab) {
   return switch (tab) {
     'alerts' => AppTab.alerts,
+    'advice' => AppTab.advice,
     'history' => AppTab.history,
-    'more' || 'settings' => AppTab.more,
-    _ => AppTab.dashboard,
-  };
-}
-
-TrustState trustStateFromRoute(String? mode) {
-  return switch (mode) {
-    'critical' => TrustState.critical,
-    'warning' => TrustState.warning,
-    'stale' => TrustState.stale,
-    'offline' => TrustState.offline,
-    'no-data' => TrustState.noData,
-    'demo' => TrustState.demo,
-    'error' => TrustState.error,
-    _ => TrustState.healthy,
-  };
-}
-
-String? routeModeFromTrustState(TrustState state) {
-  return switch (state) {
-    TrustState.critical => 'critical',
-    TrustState.warning => 'warning',
-    TrustState.stale => 'stale',
-    TrustState.offline => 'offline',
-    TrustState.noData => 'no-data',
-    TrustState.demo => 'demo',
-    TrustState.error => 'error',
-    _ => null,
+    'settings' => AppTab.settings,
+    _ => AppTab.home,
   };
 }
 
@@ -54,7 +39,10 @@ class SensorMetric {
     required this.icon,
     required this.color,
     required this.points,
+    required this.severityLabel,
+    required this.freshnessLabel,
     this.isWarning = false,
+    this.isUnavailable = false,
   });
 
   final String label;
@@ -63,7 +51,10 @@ class SensorMetric {
   final IconData icon;
   final Color color;
   final List<double> points;
+  final String severityLabel;
+  final String freshnessLabel;
   final bool isWarning;
+  final bool isUnavailable;
 }
 
 class FieldAlert {
@@ -119,6 +110,8 @@ class MockAgriData {
       icon: Icons.water_drop_outlined,
       color: AgriTheme.fieldGreen,
       points: [0.2, 0.28, 0.42, 0.38, 0.57, 0.54, 0.62],
+      severityLabel: 'Normal',
+      freshnessLabel: 'Demo data',
     ),
     SensorMetric(
       label: 'Water Level',
@@ -127,6 +120,8 @@ class MockAgriData {
       icon: Icons.water_outlined,
       color: AgriTheme.fieldGreen,
       points: [0.3, 0.3, 0.3, 0.5, 0.5, 0.7, 0.7],
+      severityLabel: 'Normal',
+      freshnessLabel: 'Demo data',
     ),
     SensorMetric(
       label: 'Temperature',
@@ -135,6 +130,8 @@ class MockAgriData {
       icon: Icons.thermostat_outlined,
       color: AgriTheme.warning,
       points: [0.15, 0.24, 0.39, 0.45, 0.6, 0.56, 0.56],
+      severityLabel: 'Warning',
+      freshnessLabel: 'Demo data',
       isWarning: true,
     ),
     SensorMetric(
@@ -144,6 +141,8 @@ class MockAgriData {
       icon: Icons.grain_outlined,
       color: AgriTheme.fieldGreen,
       points: [0.7, 0.58, 0.48, 0.4, 0.36, 0.34, 0.34],
+      severityLabel: 'Normal',
+      freshnessLabel: 'Demo data',
     ),
   ];
 
@@ -209,15 +208,17 @@ class MockAgriData {
 class AgriShell extends StatefulWidget {
   const AgriShell({
     required this.deviceConnectionRepository,
-    this.initialTab = AppTab.dashboard,
-    this.initialTrustState = TrustState.healthy,
+    required this.liveTelemetryRepository,
+    required this.alertRepository,
+    this.initialTab = AppTab.home,
     this.fieldId,
     super.key,
   });
 
   final DeviceConnectionRepository deviceConnectionRepository;
+  final LiveTelemetryRepository liveTelemetryRepository;
+  final AlertRepository alertRepository;
   final AppTab initialTab;
-  final TrustState initialTrustState;
   final String? fieldId;
 
   @override
@@ -226,7 +227,72 @@ class AgriShell extends StatefulWidget {
 
 class _AgriShellState extends State<AgriShell> {
   late AppTab _tab = widget.initialTab;
-  late TrustState _trustState = widget.initialTrustState;
+  late DashboardCubit _dashboardCubit = DashboardCubit(
+    liveTelemetryRepository: widget.liveTelemetryRepository,
+  );
+  late AlertGenerator _alertGenerator = AlertGenerator(
+    alertRepository: widget.alertRepository,
+    classifier: const FieldStatusClassifier(),
+    cooldownPeriod: const Duration(hours: 1),
+  );
+  int _watchSequence = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _watchSavedDevice();
+  }
+
+  Future<void> _watchSavedDevice() async {
+    final currentSequence = ++_watchSequence;
+    DeviceConnection? connection;
+    try {
+      connection = await widget.deviceConnectionRepository
+          .readSavedConnection()
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Ignore
+    }
+    if (!mounted || currentSequence != _watchSequence) return;
+    if (connection == null) {
+      return;
+    }
+    _dashboardCubit.watchDevice(connection.deviceCode);
+    await _alertGenerator.startListening(
+      connection,
+      widget.liveTelemetryRepository,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant AgriShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != _tab) {
+      _tab = widget.initialTab;
+    }
+    if (oldWidget.liveTelemetryRepository != widget.liveTelemetryRepository) {
+      final oldDeviceCode = _dashboardCubit.state.deviceCode;
+      _dashboardCubit.close();
+      if (oldDeviceCode != null) _alertGenerator.stopListening(oldDeviceCode);
+      _dashboardCubit = DashboardCubit(
+        liveTelemetryRepository: widget.liveTelemetryRepository,
+      );
+      _watchSavedDevice();
+    }
+    if (oldWidget.alertRepository != widget.alertRepository) {
+      _alertGenerator.dispose();
+      _alertGenerator = AlertGenerator(
+        alertRepository: widget.alertRepository,
+        classifier: const FieldStatusClassifier(),
+        cooldownPeriod: const Duration(hours: 1),
+      );
+      _watchSavedDevice();
+    }
+    if (oldWidget.deviceConnectionRepository !=
+        widget.deviceConnectionRepository) {
+      _watchSavedDevice();
+    }
+  }
 
   void _setTab(AppTab tab) {
     setState(() => _tab = tab);
@@ -234,89 +300,68 @@ class _AgriShellState extends State<AgriShell> {
 
   void _selectTab(AppTab tab) {
     _setTab(tab);
-    final mode = routeModeFromTrustState(_trustState);
-    final modeQuery = mode == null ? '' : '&mode=$mode';
 
     switch (tab) {
-      case AppTab.dashboard:
-        context.go(mode == null ? '/field' : '/field?mode=$mode');
+      case AppTab.home:
+        context.go('/field');
         return;
       case AppTab.alerts:
-        context.go('/field?tab=alerts$modeQuery');
+        context.go('/field?tab=alerts');
+        return;
+      case AppTab.advice:
+        context.go('/field?tab=advice');
         return;
       case AppTab.history:
-        context.go('/field?tab=history$modeQuery');
+        context.go('/field?tab=history');
         return;
-      case AppTab.more:
-        context.go(mode == null ? '/settings' : '/settings?mode=$mode');
+      case AppTab.settings:
+        context.go('/settings');
         return;
-    }
-  }
-
-  void _cycleTrustState() {
-    final states = [
-      TrustState.healthy,
-      TrustState.warning,
-      TrustState.critical,
-      TrustState.stale,
-      TrustState.offline,
-      TrustState.noData,
-      TrustState.demo,
-      TrustState.error,
-    ];
-    final next = states[(states.indexOf(_trustState) + 1) % states.length];
-    setState(() {
-      _trustState = next;
-    });
-  }
-
-  void _enableDemoMode() {
-    setState(() => _trustState = TrustState.demo);
-  }
-
-  void _returnToLiveData() {
-    setState(() => _trustState = TrustState.healthy);
-    if (GoRouterState.of(context).uri.queryParameters['mode'] == 'demo') {
-      final tab = _tab == AppTab.dashboard ? null : _tab.name;
-      context.go(tab == null ? '/field' : '/field?tab=$tab');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: IndexedStack(
-              index: _tab.index,
-              children: [
-                HomeScreen(
-                  trustState: _trustState,
-                  onCycleState: _cycleTrustState,
-                  onReturnToLiveData: _returnToLiveData,
-                  onOpenAlerts: () => _selectTab(AppTab.alerts),
-                  onOpenAdvice: () => _selectTab(AppTab.more),
-                ),
-                const AlertsScreen(),
-                const HistoryScreen(),
-                SettingsScreen(
-                  deviceConnectionRepository: widget.deviceConnectionRepository,
-                  trustState: _trustState,
-                  onCycleState: _cycleTrustState,
-                  onEnableDemoMode: _enableDemoMode,
-                  onReturnToLiveData: _returnToLiveData,
-                ),
-              ],
+    return BlocProvider.value(
+      value: _dashboardCubit,
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: IndexedStack(
+                index: _tab.index,
+                children: [
+                  HomeScreen(
+                    onOpenAlerts: () => _selectTab(AppTab.alerts),
+                    onOpenAdvice: () => _selectTab(AppTab.advice),
+                  ),
+                  alerts_ui.AlertsScreenWrapper(
+                    alertRepository: widget.alertRepository,
+                  ),
+                  const AdviceScreen(),
+                  const HistoryScreen(),
+                  SettingsScreen(
+                    deviceConnectionRepository:
+                        widget.deviceConnectionRepository,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: FloatingTabBar(currentTab: _tab, onChanged: _selectTab),
-          ),
-        ],
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: FloatingTabBar(currentTab: _tab, onChanged: _selectTab),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _dashboardCubit.close();
+    _alertGenerator.dispose();
+    super.dispose();
   }
 }
 
@@ -357,43 +402,111 @@ class PageFrame extends StatelessWidget {
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
-    required this.trustState,
-    required this.onCycleState,
-    required this.onReturnToLiveData,
     required this.onOpenAlerts,
     required this.onOpenAdvice,
     super.key,
   });
 
-  final TrustState trustState;
-  final VoidCallback onCycleState;
-  final VoidCallback onReturnToLiveData;
   final VoidCallback onOpenAlerts;
   final VoidCallback onOpenAdvice;
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<DashboardCubit, DashboardState>(
+      builder: (context, state) {
+        final freshnessLabel = freshnessLabelForState(state);
+        final metrics = sensorMetricsForState(state, freshnessLabel);
+
+        void forceRefresh() {
+          final deviceCode = context.read<DashboardCubit>().state.deviceCode;
+          if (deviceCode != null) {
+            context.read<DashboardCubit>().watchDevice(deviceCode);
+          }
+        }
+
+        return PageFrame(
+          paddingTop: 12,
+          children: [
+            GreetingHeader(trustState: state.trustState),
+            const SizedBox(height: 18),
+            FieldHeroCard(trustState: state.trustState),
+            const SizedBox(height: 18),
+            FieldStatusCard(
+              state: state,
+              onPrimaryAction: () {
+                if (state.trustState == TrustState.warning ||
+                    state.trustState == TrustState.critical) {
+                  final alertId =
+                      state.classification?.leadingCondition.sensorKey ??
+                      'latest';
+                  context.go('/field/alerts/$alertId');
+                  return;
+                }
+                forceRefresh();
+              },
+            ),
+            const SizedBox(height: 18),
+            SensorDetailsHeader(freshnessLabel: freshnessLabel),
+            const SizedBox(height: 10),
+            MetricGrid(metrics: metrics),
+            const SizedBox(height: 18),
+            AdvicePreviewCard(onOpenAdvice: onOpenAdvice),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class AlertDetailPlaceholderScreen extends StatelessWidget {
+  const AlertDetailPlaceholderScreen({required this.alertId, super.key});
+
+  final String alertId;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = alertId == 'latest'
+        ? 'Alert Detail'
+        : 'Alert Detail: ${_sensorLabelForKey(alertId)}';
+
     return PageFrame(
-      paddingTop: 12,
+      title: title,
+      subtitle: 'Review the field condition before taking action',
       children: [
-        GreetingHeader(trustState: trustState),
-        const SizedBox(height: 18),
-        FieldHeroCard(trustState: trustState),
-        const SizedBox(height: 18),
-        FieldHealthCard(
-          trustState: trustState,
-          onCycleState: onCycleState,
-          onReturnToLiveData: onReturnToLiveData,
-          onOpenAlerts: onOpenAlerts,
-          onOpenAdvice: onOpenAdvice,
+        SoftCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Alert detail is being prepared',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Use the Alerts tab for the current list while the full detail view is built.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => context.go('/field?tab=alerts'),
+                child: const Text('Back to alerts'),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 18),
-        MetricGrid(metrics: MockAgriData.metrics),
-        const SizedBox(height: 18),
-        AdvicePreviewCard(onOpenAdvice: onOpenAdvice),
       ],
     );
   }
+}
+
+String _sensorLabelForKey(String key) {
+  return switch (key) {
+    'soilMoisture' => 'Soil Moisture',
+    'waterLevel' => 'Water Level',
+    'temperature' => 'Temperature',
+    'humidity' => 'Humidity',
+    _ => key,
+  };
 }
 
 class GreetingHeader extends StatelessWidget {
@@ -576,40 +689,27 @@ class FieldHeroCard extends StatelessWidget {
   }
 }
 
-class FieldHealthCard extends StatelessWidget {
-  const FieldHealthCard({
-    required this.trustState,
-    required this.onCycleState,
-    required this.onReturnToLiveData,
-    required this.onOpenAlerts,
-    required this.onOpenAdvice,
+class FieldStatusCard extends StatelessWidget {
+  const FieldStatusCard({
+    required this.state,
+    required this.onPrimaryAction,
     super.key,
   });
 
-  final TrustState trustState;
-  final VoidCallback onCycleState;
-  final VoidCallback onReturnToLiveData;
-  final VoidCallback onOpenAlerts;
-  final VoidCallback onOpenAdvice;
+  final DashboardState state;
+  final VoidCallback onPrimaryAction;
 
   @override
   Widget build(BuildContext context) {
-    final info = trustInfo(trustState);
-    final score = switch (trustState) {
-      TrustState.critical => 38,
-      TrustState.warning => 64,
-      TrustState.healthy => 87,
-      TrustState.demo => 87,
-      _ => null,
-    };
-    final action = switch (trustState) {
-      TrustState.critical => ('Check alert', onOpenAlerts),
-      TrustState.warning => ('View advice', onOpenAdvice),
-      TrustState.noData => ('Refresh', onCycleState),
-      TrustState.offline || TrustState.stale => ('Retry sync', onCycleState),
-      TrustState.demo => ('Live', onReturnToLiveData),
-      TrustState.error => ('Retry sync', onCycleState),
-      _ => ('Cycle state', onCycleState),
+    final info = fieldStatusInfo(state);
+    final nextCheck = nextCheckLabelForState(state);
+    final actionLabel = switch (state.trustState) {
+      TrustState.critical => 'Check alert',
+      TrustState.warning => 'Check alert',
+      TrustState.noData => 'Refresh',
+      TrustState.offline || TrustState.stale => 'Retry sync',
+      TrustState.error => 'Retry sync',
+      _ => 'Refresh',
     };
 
     return SoftCard(
@@ -621,31 +721,49 @@ class FieldHealthCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Field Health',
+                  'Field Status',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  info.description,
+                  info.recommendation,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 12),
-                TrustStatusChip(state: trustState),
+                TrustStatusChip(state: state.trustState),
+                if (info.limitation != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    info.limitation!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: info.color,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  'Next check: $nextCheck',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AgriTheme.muted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: action.$2,
+                  onPressed: onPrimaryAction,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(48, 48),
                     backgroundColor: info.color,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(action.$1),
+                  child: Text(actionLabel),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          HealthScoreRing(score: score, state: trustState),
+          HealthScoreRing(state: state),
         ],
       ),
     );
@@ -653,19 +771,19 @@ class FieldHealthCard extends StatelessWidget {
 }
 
 class HealthScoreRing extends StatelessWidget {
-  const HealthScoreRing({required this.score, required this.state, super.key});
+  const HealthScoreRing({required this.state, super.key});
 
-  final int? score;
-  final TrustState state;
+  final DashboardState state;
 
   @override
   Widget build(BuildContext context) {
-    final info = trustInfo(state);
+    final info = fieldStatusInfo(state);
+    final score = info.score;
     final label = score == null ? 'Cannot verify' : '$score';
 
     return Semantics(
       label: score == null
-          ? 'Field health cannot be verified. ${info.description}'
+          ? 'Field health cannot be verified. ${info.recommendation}'
           : 'Field health score $score. ${info.semanticLabel}.',
       child: SizedBox(
         width: 98,
@@ -676,7 +794,7 @@ class HealthScoreRing extends StatelessWidget {
             CustomPaint(
               size: const Size(98, 98),
               painter: RingPainter(
-                progress: score == null ? 0.0 : score! / 100,
+                progress: score == null ? 0.0 : score / 100,
                 color: info.color,
                 muted: info.background,
               ),
@@ -712,6 +830,273 @@ class HealthScoreRing extends StatelessWidget {
   }
 }
 
+class FieldStatusInfo {
+  const FieldStatusInfo({
+    required this.recommendation,
+    required this.semanticLabel,
+    required this.color,
+    required this.background,
+    this.score,
+    this.limitation,
+  });
+
+  final String recommendation;
+  final String semanticLabel;
+  final Color color;
+  final Color background;
+  final int? score;
+  final String? limitation;
+}
+
+FieldStatusInfo fieldStatusInfo(DashboardState state) {
+  final tokens = AgriFieldTokens.light;
+
+  return switch (state.trustState) {
+    TrustState.loading => FieldStatusInfo(
+      recommendation: state.message ?? 'Checking for the latest field reading.',
+      semanticLabel: 'Syncing field data',
+      color: AgriTheme.muted,
+      background: const Color(0xFFEDEFF2),
+      limitation: 'No recent reading',
+    ),
+    TrustState.noData => FieldStatusInfo(
+      recommendation: state.message ?? 'Waiting for the first field reading.',
+      semanticLabel: 'No readings yet',
+      color: AgriTheme.muted,
+      background: const Color(0xFFEDEFF2),
+      limitation: 'No recent reading',
+    ),
+    TrustState.offline => FieldStatusInfo(
+      recommendation:
+          state.message ?? 'Latest field readings are unavailable right now.',
+      semanticLabel: 'Device offline',
+      color: tokens.stateDisabled,
+      background: const Color(0xFFEDEFF2),
+      limitation: 'No recent reading',
+    ),
+    TrustState.stale => FieldStatusInfo(
+      recommendation:
+          state.lastKnownClassification?.recommendation.message ??
+          state.message ??
+          'The latest reading is stale.',
+      semanticLabel: 'Data may be outdated',
+      color: tokens.confidenceStale,
+      background: AgriTheme.softAmber,
+      limitation: 'Data may be outdated',
+    ),
+    TrustState.error => FieldStatusInfo(
+      recommendation:
+          state.message ?? 'The latest reading could not be verified.',
+      semanticLabel: 'Reading error',
+      color: AgriTheme.muted,
+      background: const Color(0xFFEDEFF2),
+      limitation: 'No recent reading',
+    ),
+    TrustState.demo => FieldStatusInfo(
+      recommendation:
+          state.recommendation?.message ?? 'Showing simulated readings.',
+      semanticLabel: 'Demo readings are active',
+      color: tokens.statusOkay,
+      background: AgriTheme.softGreen,
+      score: _scoreForStatus(state.fieldStatus ?? FieldStatus.normal),
+    ),
+    TrustState.healthy || TrustState.warning || TrustState.critical =>
+      state.fieldStatus == null
+          ? FieldStatusInfo(
+              recommendation:
+                  state.message ??
+                  'Latest field reading could not be classified.',
+              semanticLabel: 'Field condition unknown',
+              color: AgriTheme.muted,
+              background: const Color(0xFFEDEFF2),
+              limitation: 'Cannot verify status',
+            )
+          : FieldStatusInfo(
+              recommendation:
+                  state.recommendation?.message ??
+                  state.message ??
+                  'Latest field reading is available.',
+              semanticLabel: _semanticLabelForStatus(state.fieldStatus!),
+              color: _colorForFieldStatus(state.fieldStatus!),
+              background: _backgroundForFieldStatus(state.fieldStatus!),
+              score: _scoreForStatus(state.fieldStatus!),
+            ),
+  };
+}
+
+String nextCheckLabelForState(DashboardState state) {
+  return switch (state.trustState) {
+    TrustState.critical => 'now',
+    TrustState.warning => 'today',
+    TrustState.stale || TrustState.offline || TrustState.error => 'after sync',
+    TrustState.loading => 'after sync',
+    TrustState.noData => 'when data arrives',
+    TrustState.demo => 'demo only',
+    TrustState.healthy => 'within 24 hours',
+  };
+}
+
+Color _colorForFieldStatus(FieldStatus status) {
+  return switch (status) {
+    FieldStatus.normal => AgriFieldTokens.light.statusOkay,
+    FieldStatus.warning => AgriFieldTokens.light.statusNeedsAttention,
+    FieldStatus.critical => AgriFieldTokens.light.statusCritical,
+  };
+}
+
+Color _backgroundForFieldStatus(FieldStatus status) {
+  return switch (status) {
+    FieldStatus.normal => AgriTheme.softGreen,
+    FieldStatus.warning => AgriTheme.softAmber,
+    FieldStatus.critical => AgriTheme.softRed,
+  };
+}
+
+int _scoreForStatus(FieldStatus status) {
+  return switch (status) {
+    FieldStatus.normal => 87,
+    FieldStatus.warning => 64,
+    FieldStatus.critical => 38,
+  };
+}
+
+String _semanticLabelForStatus(FieldStatus status) {
+  return switch (status) {
+    FieldStatus.normal => 'Healthy field condition',
+    FieldStatus.warning => 'Field condition needs attention',
+    FieldStatus.critical => 'Critical field condition',
+  };
+}
+
+String freshnessLabelForState(DashboardState state) {
+  return switch (state.trustState) {
+    TrustState.loading => 'Checking latest reading',
+    TrustState.noData => 'No recent reading',
+    TrustState.offline => 'Device offline',
+    TrustState.error => 'No recent reading',
+    TrustState.stale => 'Stale reading',
+    TrustState.demo => 'Demo data',
+    TrustState.healthy ||
+    TrustState.warning ||
+    TrustState.critical => _updatedAgoLabel(
+      state.reading?.createdAt,
+      state.updatedAt ?? DateTime.now(),
+    ),
+  };
+}
+
+String _updatedAgoLabel(DateTime? readingAt, DateTime now) {
+  if (readingAt == null) return 'No recent reading';
+  final age = now.difference(readingAt);
+  if (age.inMinutes < 1) return 'Updated just now';
+  if (age.inHours < 1) return 'Updated ${age.inMinutes} min ago';
+  if (age.inDays < 1) return 'Updated ${age.inHours} hr ago';
+  return 'Updated ${age.inDays} day${age.inDays == 1 ? '' : 's'} ago';
+}
+
+List<SensorMetric> sensorMetricsForState(
+  DashboardState state,
+  String freshnessLabel,
+) {
+  final reading = state.reading;
+  final unavailable =
+      reading == null ||
+      switch (state.trustState) {
+        TrustState.loading ||
+        TrustState.noData ||
+        TrustState.offline ||
+        TrustState.error => true,
+        TrustState.stale ||
+        TrustState.demo ||
+        TrustState.healthy ||
+        TrustState.warning ||
+        TrustState.critical => false,
+      };
+
+  SensorMetric metric({
+    required String key,
+    required String label,
+    required String value,
+    required String unit,
+    required IconData icon,
+    required List<double> points,
+  }) {
+    final status = state.classification?.conditionFor(key)?.status;
+    final hasUnknownStatus = !unavailable && status == null;
+    final isStale = state.trustState == TrustState.stale;
+    final severityLabel = unavailable
+        ? 'Unavailable'
+        : isStale
+        ? 'Stale'
+        : hasUnknownStatus
+        ? 'Unknown'
+        : _severityLabelForStatus(status!);
+    final color = unavailable || hasUnknownStatus
+        ? AgriTheme.muted
+        : isStale
+        ? AgriFieldTokens.light.confidenceStale
+        : _colorForFieldStatus(status!);
+
+    return SensorMetric(
+      label: label,
+      value: unavailable ? '--' : value,
+      unit: unavailable ? '' : unit,
+      icon: icon,
+      color: color,
+      points: points,
+      severityLabel: severityLabel,
+      freshnessLabel: freshnessLabel,
+      isWarning:
+          !isStale &&
+          (status == FieldStatus.warning || status == FieldStatus.critical),
+      isUnavailable: unavailable || hasUnknownStatus,
+    );
+  }
+
+  return [
+    metric(
+      key: 'soilMoisture',
+      label: 'Soil Moisture',
+      value: reading?.soilMoisture.toString() ?? '--',
+      unit: '%',
+      icon: Icons.water_drop_outlined,
+      points: MockAgriData.metrics[0].points,
+    ),
+    metric(
+      key: 'waterLevel',
+      label: 'Water Level',
+      value: reading?.waterLevel.toStringAsFixed(1) ?? '--',
+      unit: 'cm',
+      icon: Icons.water_outlined,
+      points: MockAgriData.metrics[1].points,
+    ),
+    metric(
+      key: 'temperature',
+      label: 'Temperature',
+      value: reading?.temperature.toStringAsFixed(1) ?? '--',
+      unit: 'C',
+      icon: Icons.thermostat_outlined,
+      points: MockAgriData.metrics[2].points,
+    ),
+    metric(
+      key: 'humidity',
+      label: 'Humidity',
+      value: reading?.humidity.toStringAsFixed(1) ?? '--',
+      unit: '%',
+      icon: Icons.grain_outlined,
+      points: MockAgriData.metrics[3].points,
+    ),
+  ];
+}
+
+String _severityLabelForStatus(FieldStatus status) {
+  return switch (status) {
+    FieldStatus.normal => 'Normal',
+    FieldStatus.warning => 'Warning',
+    FieldStatus.critical => 'Critical',
+  };
+}
+
 class MetricGrid extends StatelessWidget {
   const MetricGrid({required this.metrics, super.key});
 
@@ -740,6 +1125,47 @@ class MetricGrid extends StatelessWidget {
   }
 }
 
+class SensorDetailsHeader extends StatelessWidget {
+  const SensorDetailsHeader({required this.freshnessLabel, super.key});
+
+  final String freshnessLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Sensor Details',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        ReadingFreshnessLabel(label: freshnessLabel),
+      ],
+    );
+  }
+}
+
+class ReadingFreshnessLabel extends StatelessWidget {
+  const ReadingFreshnessLabel({required this.label, super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Reading freshness: $label',
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AgriTheme.muted,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class SensorMetricCard extends StatelessWidget {
   const SensorMetricCard({required this.metric, super.key});
 
@@ -747,57 +1173,72 @@ class SensorMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SoftCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              MetricIcon(icon: metric.icon, color: metric.color),
-              const Spacer(),
-              SizedBox(
-                width: 64,
-                height: 32,
-                child: CustomPaint(
-                  painter: SparklinePainter(
-                    points: metric.points,
-                    color: metric.color,
+    return Semantics(
+      label:
+          '${metric.label}: ${metric.value}${metric.unit}. '
+          '${metric.severityLabel}. ${metric.freshnessLabel}.',
+      child: SoftCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                MetricIcon(icon: metric.icon, color: metric.color),
+                const Spacer(),
+                SizedBox(
+                  width: 64,
+                  height: 32,
+                  child: CustomPaint(
+                    painter: SparklinePainter(
+                      points: metric.points,
+                      color: metric.color,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                metric.value,
-                style: const TextStyle(
-                  color: AgriTheme.text,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(width: 3),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  metric.unit,
-                  style: const TextStyle(
-                    color: AgriTheme.muted,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
+              ],
+            ),
+            const Spacer(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  metric.value,
+                  style: TextStyle(
+                    color: metric.isUnavailable
+                        ? AgriTheme.muted
+                        : AgriTheme.text,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
                   ),
                 ),
+                const SizedBox(width: 3),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    metric.unit,
+                    style: const TextStyle(
+                      color: AgriTheme.muted,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(metric.label, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 4),
+            Text(
+              metric.severityLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: metric.color,
+                fontWeight: FontWeight.w800,
               ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text(metric.label, style: Theme.of(context).textTheme.bodyMedium),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -841,31 +1282,6 @@ class AdvicePreviewCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class AlertsScreen extends StatelessWidget {
-  const AlertsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return PageFrame(
-      title: 'Alerts',
-      children: [
-        const FilterPills(labels: ['All', 'Active', 'Resolved']),
-        const SizedBox(height: 14),
-        const FilterPills(
-          labels: ['Critical', 'Attention', 'Warning', 'Normal'],
-        ),
-        const SizedBox(height: 18),
-        ...MockAgriData.alerts.map(
-          (alert) => Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: AlertCard(alert: alert),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1316,70 +1732,70 @@ class HistoryReadingCard extends StatelessWidget {
 }
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({
-    required this.deviceConnectionRepository,
-    required this.trustState,
-    required this.onCycleState,
-    required this.onEnableDemoMode,
-    required this.onReturnToLiveData,
-    super.key,
-  });
+  const SettingsScreen({required this.deviceConnectionRepository, super.key});
 
   final DeviceConnectionRepository deviceConnectionRepository;
-  final TrustState trustState;
-  final VoidCallback onCycleState;
-  final VoidCallback onEnableDemoMode;
-  final VoidCallback onReturnToLiveData;
 
   @override
   Widget build(BuildContext context) {
-    return PageFrame(
-      title: 'More',
-      children: [
-        const ProfileCard(),
-        const SizedBox(height: 24),
-        SectionLabel('Device Status'),
-        const SizedBox(height: 10),
-        DeviceRecoveryCard(
-          trustState: trustState,
-          onRefresh: onCycleState,
-          onEnableDemoMode: onEnableDemoMode,
-          onReturnToLiveData: onReturnToLiveData,
-        ),
-        const SizedBox(height: 12),
-        LiveDeviceConnectionCard(
-          deviceConnectionRepository: deviceConnectionRepository,
-        ),
-        const SizedBox(height: 24),
-        SectionLabel('Field Advice'),
-        const SizedBox(height: 10),
-        const AdvicePanel(),
-        const SizedBox(height: 24),
-        SectionLabel('Language'),
-        const SizedBox(height: 10),
-        const LanguageSelector(),
-        const SizedBox(height: 24),
-        SectionLabel('Notifications'),
-        const SizedBox(height: 10),
-        const SettingsToggle(
-          label: 'In-app alerts',
-          icon: Icons.notifications_none,
-        ),
-        const SettingsToggle(
-          label: 'Warning alerts',
-          icon: Icons.circle,
-          iconColor: AgriTheme.warning,
-        ),
-        const SettingsToggle(
-          label: 'Critical alerts',
-          icon: Icons.circle,
-          iconColor: AgriTheme.critical,
-        ),
-        const SizedBox(height: 24),
-        SectionLabel('Farm Information'),
-        const SizedBox(height: 10),
-        const FarmInfoCard(),
-      ],
+    return BlocBuilder<DashboardCubit, DashboardState>(
+      builder: (context, state) {
+        void forceRefresh() {
+          final deviceCode = state.deviceCode;
+          if (deviceCode != null) {
+            context.read<DashboardCubit>().watchDevice(deviceCode);
+          }
+        }
+
+        return PageFrame(
+          title: 'Settings',
+          children: [
+            const ProfileCard(),
+            const SizedBox(height: 24),
+            SectionLabel('Device Status'),
+            const SizedBox(height: 10),
+            DeviceRecoveryCard(
+              trustState: state.trustState,
+              onRefresh: forceRefresh,
+              onEnableDemoMode: () {}, // No-op, live data only
+              onReturnToLiveData: forceRefresh,
+            ),
+            const SizedBox(height: 12),
+            LiveDeviceConnectionCard(
+              deviceConnectionRepository: deviceConnectionRepository,
+            ),
+            const SizedBox(height: 24),
+            SectionLabel('Field Advice'),
+            const SizedBox(height: 10),
+            const AdvicePanel(),
+            const SizedBox(height: 24),
+            SectionLabel('Language'),
+            const SizedBox(height: 10),
+            const LanguageSelector(),
+            const SizedBox(height: 24),
+            SectionLabel('Notifications'),
+            const SizedBox(height: 10),
+            const SettingsToggle(
+              label: 'In-app alerts',
+              icon: Icons.notifications_none,
+            ),
+            const SettingsToggle(
+              label: 'Warning alerts',
+              icon: Icons.circle,
+              iconColor: AgriTheme.warning,
+            ),
+            const SettingsToggle(
+              label: 'Critical alerts',
+              icon: Icons.circle,
+              iconColor: AgriTheme.critical,
+            ),
+            const SizedBox(height: 24),
+            SectionLabel('Farm Information'),
+            const SizedBox(height: 10),
+            const FarmInfoCard(),
+          ],
+        );
+      },
     );
   }
 }
@@ -1399,10 +1815,39 @@ class LiveDeviceConnectionCard extends StatefulWidget {
 
 class _LiveDeviceConnectionCardState extends State<LiveDeviceConnectionCard> {
   bool _isClearing = false;
+  String? _clearError;
+  late Future<DeviceConnection?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.deviceConnectionRepository.readSavedConnection();
+  }
+
+  @override
+  void didUpdateWidget(covariant LiveDeviceConnectionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.deviceConnectionRepository !=
+        widget.deviceConnectionRepository) {
+      _future = widget.deviceConnectionRepository.readSavedConnection();
+    }
+  }
 
   Future<void> _clearConnection() async {
-    setState(() => _isClearing = true);
-    await widget.deviceConnectionRepository.clearConnection();
+    setState(() {
+      _isClearing = true;
+      _clearError = null;
+    });
+    try {
+      await widget.deviceConnectionRepository.clearConnection();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isClearing = false;
+        _clearError = 'Could not change device right now. Please try again.';
+      });
+      return;
+    }
     if (!mounted) return;
     context.go('/pair');
   }
@@ -1410,10 +1855,13 @@ class _LiveDeviceConnectionCardState extends State<LiveDeviceConnectionCard> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: widget.deviceConnectionRepository.readSavedConnection(),
+      future: _future,
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
         final connection = snapshot.data;
-        if (connection == null) {
+        if (snapshot.hasError || connection == null) {
           return SoftCard(
             child: Row(
               children: [
@@ -1487,6 +1935,15 @@ class _LiveDeviceConnectionCardState extends State<LiveDeviceConnectionCard> {
                   minimumSize: const Size.fromHeight(48),
                 ),
               ),
+              if (_clearError != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _clearError!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AgriTheme.critical),
+                ),
+              ],
             ],
           ),
         );
@@ -1866,10 +2323,10 @@ class FloatingTabBar extends StatelessWidget {
         child: Row(
           children: [
             NavItem(
-              tab: AppTab.dashboard,
+              tab: AppTab.home,
               currentTab: currentTab,
-              label: 'Dashboard',
-              icon: Icons.dashboard_rounded,
+              label: 'Home',
+              icon: Icons.home_rounded,
               onChanged: onChanged,
             ),
             NavItem(
@@ -1880,6 +2337,13 @@ class FloatingTabBar extends StatelessWidget {
               onChanged: onChanged,
             ),
             NavItem(
+              tab: AppTab.advice,
+              currentTab: currentTab,
+              label: 'Advice',
+              icon: Icons.eco_outlined,
+              onChanged: onChanged,
+            ),
+            NavItem(
               tab: AppTab.history,
               currentTab: currentTab,
               label: 'History',
@@ -1887,10 +2351,10 @@ class FloatingTabBar extends StatelessWidget {
               onChanged: onChanged,
             ),
             NavItem(
-              tab: AppTab.more,
+              tab: AppTab.settings,
               currentTab: currentTab,
-              label: 'More',
-              icon: Icons.more_horiz_rounded,
+              label: 'Settings',
+              icon: Icons.settings_outlined,
               onChanged: onChanged,
             ),
           ],
@@ -1943,14 +2407,18 @@ class NavItem extends StatelessWidget {
                   size: 22,
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: active ? AgriTheme.deepGreen : AgriTheme.muted,
-                    fontSize: 10,
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: active ? AgriTheme.deepGreen : AgriTheme.muted,
+                        fontSize: 10,
+                        fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -2253,8 +2721,8 @@ TrustInfo trustInfo(TrustState state) {
       description: 'The latest reading could not be verified.',
       semanticLabel: 'Reading error',
       icon: Icons.error_outline,
-      color: AgriFieldTokens.light.statusCritical,
-      background: AgriTheme.softRed,
+      color: AgriTheme.muted,
+      background: const Color(0xFFEDEFF2),
     ),
   };
 }

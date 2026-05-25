@@ -29,12 +29,18 @@ class DeviceConnection {
     final dataSourceName = json['dataSource'];
 
     if (deviceCode is! String ||
-        deviceCode.trim().isEmpty ||
         deviceId is! String ||
-        deviceId.trim().isEmpty ||
         farmId is! String ||
-        farmId.trim().isEmpty ||
         dataSourceName is! String) {
+      return null;
+    }
+
+    final normalizedDeviceCode = _normalizeStoredDeviceCode(deviceCode);
+    final trimmedDeviceId = deviceId.trim();
+    final trimmedFarmId = farmId.trim();
+    if (normalizedDeviceCode.isEmpty ||
+        trimmedDeviceId.isEmpty ||
+        trimmedFarmId.isEmpty) {
       return null;
     }
 
@@ -44,9 +50,9 @@ class DeviceConnection {
     if (dataSource == null) return null;
 
     return DeviceConnection(
-      deviceCode: deviceCode,
-      deviceId: deviceId,
-      farmId: farmId,
+      deviceCode: normalizedDeviceCode,
+      deviceId: trimmedDeviceId,
+      farmId: trimmedFarmId,
       dataSource: dataSource,
     );
   }
@@ -63,6 +69,10 @@ class DeviceConnection {
 
   @override
   int get hashCode => Object.hash(deviceCode, deviceId, farmId, dataSource);
+}
+
+String _normalizeStoredDeviceCode(String code) {
+  return code.trim().replaceAll(RegExp(r'[.#$\[\]\s-]+'), '').toUpperCase();
 }
 
 class DeviceCodeLookup {

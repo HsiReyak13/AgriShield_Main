@@ -10,7 +10,10 @@ class DeviceCodeKeyEncoder {
   }
 
   String encode(String code) {
-    final normalized = normalize(code);
-    return sha256.convert(utf8.encode(normalized)).toString();
+    return hashNormalized(normalize(code));
+  }
+
+  String hashNormalized(String normalizedCode) {
+    return sha256.convert(utf8.encode(normalizedCode)).toString();
   }
 }

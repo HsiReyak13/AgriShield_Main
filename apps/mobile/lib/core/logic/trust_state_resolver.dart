@@ -22,7 +22,7 @@ class TrustStateResolver {
     if (failure != null) {
       return TrustResolution(
         trustState: _trustStateForFailure(failure.code),
-        lastKnownClassification: lastKnownClassification,
+        lastKnownClassification: _stripNormal(lastKnownClassification),
       );
     }
 
@@ -30,14 +30,15 @@ class TrustStateResolver {
     if (reading == null) {
       return TrustResolution(
         trustState: TrustState.noData,
-        lastKnownClassification: lastKnownClassification,
+        lastKnownClassification: _stripNormal(lastKnownClassification),
       );
     }
 
-    if (now.difference(reading.createdAt) > thresholds.freshnessThreshold) {
+    final timeDiff = now.difference(reading.createdAt);
+    if (timeDiff > thresholds.freshnessThreshold || timeDiff.isNegative) {
       return TrustResolution(
         trustState: TrustState.stale,
-        lastKnownClassification: lastKnownClassification,
+        lastKnownClassification: _stripNormal(lastKnownClassification),
       );
     }
 
@@ -69,6 +70,13 @@ class TrustStateResolver {
       FieldStatus.warning => TrustState.warning,
       FieldStatus.normal => TrustState.healthy,
     };
+  }
+
+  FieldClassification? _stripNormal(FieldClassification? classification) {
+    if (classification == null) return null;
+    return classification.fieldStatus == FieldStatus.normal
+        ? null
+        : classification;
   }
 }
 
