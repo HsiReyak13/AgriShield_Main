@@ -1,6 +1,7 @@
 import 'package:agrishield/core/repositories/alert_repository.dart';
 import 'package:agrishield/core/repositories/device_connection_repository.dart';
 import 'package:agrishield/core/repositories/live_telemetry_repository.dart';
+import 'package:agrishield/features/alerts/presentation/screens/alert_detail_screen.dart';
 import 'package:agrishield/features/dashboard/view/prototype_screens.dart';
 import 'package:agrishield/features/demo_mode/view/demo_mode_screen.dart';
 import 'package:agrishield/features/device_pairing/cubit/device_pairing_cubit.dart';
@@ -8,6 +9,8 @@ import 'package:agrishield/features/device_pairing/view/device_pairing_screen.da
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+
+const _savedConnectionLookupTimeout = Duration(seconds: 5);
 
 GoRouter createAppRouter({
   required DeviceConnectionRepository deviceConnectionRepository,
@@ -28,7 +31,9 @@ GoRouter createAppRouter({
 
       Object? connection;
       try {
-        connection = await deviceConnectionRepository.readSavedConnection();
+        connection = await deviceConnectionRepository
+            .readSavedConnection()
+            .timeout(_savedConnectionLookupTimeout);
       } catch (_) {
         connection = null;
       }
@@ -70,8 +75,10 @@ GoRouter createAppRouter({
           GoRoute(
             path: 'alerts/:alertId',
             name: 'alert-detail',
-            builder: (context, state) => AlertDetailPlaceholderScreen(
+            builder: (context, state) => AlertDetailScreen(
               alertId: state.pathParameters['alertId'] ?? 'latest',
+              alertRepository: alertRepository,
+              deviceConnectionRepository: deviceConnectionRepository,
             ),
           ),
           GoRoute(

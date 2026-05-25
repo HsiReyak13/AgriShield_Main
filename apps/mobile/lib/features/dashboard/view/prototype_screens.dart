@@ -494,57 +494,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class AlertDetailPlaceholderScreen extends StatelessWidget {
-  const AlertDetailPlaceholderScreen({required this.alertId, super.key});
-
-  final String alertId;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = alertId == 'latest'
-        ? 'Alert Detail'
-        : 'Alert Detail: ${_sensorLabelForKey(alertId)}';
-
-    return PageFrame(
-      title: title,
-      subtitle: 'Review the field condition before taking action',
-      children: [
-        SoftCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Alert detail is being prepared',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Use the Alerts tab for the current list while the full detail view is built.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => context.go('/field?tab=alerts'),
-                child: const Text('Back to alerts'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-String _sensorLabelForKey(String key) {
-  return switch (key) {
-    'soilMoisture' => 'Soil Moisture',
-    'waterLevel' => 'Water Level',
-    'temperature' => 'Temperature',
-    'humidity' => 'Humidity',
-    _ => key,
-  };
-}
-
 class GreetingHeader extends StatelessWidget {
   const GreetingHeader({required this.trustState, super.key});
 
