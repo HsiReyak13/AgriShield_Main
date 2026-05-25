@@ -11,7 +11,21 @@ class DevicePairingCubit extends Cubit<DevicePairingState> {
 
   Future<void> load() async {
     emit(const DevicePairingState(status: DevicePairingStatus.loading));
-    final connection = await _repository.readSavedConnection();
+    DeviceConnection? connection;
+    try {
+      connection = await _repository.readSavedConnection();
+    } catch (_) {
+      if (isClosed) return;
+      emit(
+        DevicePairingState.failure(
+          DevicePairingFailure.unknown,
+          'Could not read saved device connection. Please try again.',
+        ),
+      );
+      return;
+    }
+    if (isClosed) return;
+
     emit(
       connection == null
           ? const DevicePairingState(status: DevicePairingStatus.unpaired)
@@ -23,6 +37,8 @@ class DevicePairingCubit extends Cubit<DevicePairingState> {
   }
 
   Future<void> submit(String code) async {
+    if (state.status == DevicePairingStatus.submitting) return;
+
     final trimmed = code.trim();
     if (trimmed.isEmpty) {
       emit(
@@ -35,10 +51,36 @@ class DevicePairingCubit extends Cubit<DevicePairingState> {
     }
 
     emit(const DevicePairingState(status: DevicePairingStatus.submitting));
-    final result = await _repository.resolveDeviceCode(trimmed);
+    final DeviceConnectionResult result;
+    try {
+      result = await _repository.resolveDeviceCode(trimmed);
+    } catch (_) {
+      if (isClosed) return;
+      emit(
+        DevicePairingState.failure(
+          DevicePairingFailure.unknown,
+          DevicePairingFailure.unknown.message,
+        ),
+      );
+      return;
+    }
+    if (isClosed) return;
+
     final connection = result.connection;
     if (connection != null) {
-      await _repository.saveConnection(connection);
+      try {
+        await _repository.saveConnection(connection);
+      } catch (_) {
+        if (isClosed) return;
+        emit(
+          DevicePairingState.failure(
+            DevicePairingFailure.storage,
+            DevicePairingFailure.storage.message,
+          ),
+        );
+        return;
+      }
+      if (isClosed) return;
       emit(
         DevicePairingState(
           status: DevicePairingStatus.success,
@@ -51,11 +93,24 @@ class DevicePairingCubit extends Cubit<DevicePairingState> {
     final failure = DevicePairingFailure.fromRepositoryCode(
       result.failure?.code ?? DeviceConnectionFailureCode.unknown,
     );
+    if (isClosed) return;
     emit(DevicePairingState.failure(failure, failure.message));
   }
 
   Future<void> clearConnection() async {
-    await _repository.clearConnection();
+    try {
+      await _repository.clearConnection();
+    } catch (_) {
+      if (isClosed) return;
+      emit(
+        DevicePairingState.failure(
+          DevicePairingFailure.storage,
+          DevicePairingFailure.storage.message,
+        ),
+      );
+      return;
+    }
+    if (isClosed) return;
     emit(const DevicePairingState(status: DevicePairingStatus.unpaired));
   }
 }
@@ -118,6 +173,9 @@ enum DevicePairingFailure {
   malformedData('Check the device code and try again.'),
   unavailable(
     'Device lookup is unavailable. Check your connection or try Demo Mode.',
+  ),
+  storage(
+    'Device connected, but this phone could not save it. Please try again.',
   ),
   unknown(
     'Something went wrong while connecting the device. Please try again.',

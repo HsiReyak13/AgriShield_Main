@@ -19,6 +19,12 @@ class FieldStatusClassifier {
         unit: 'raw',
         thresholds: thresholds.soilMoisture,
         concern: 'Soil moisture may need irrigation checks.',
+        actionRecommendation: const FieldRecommendation(
+          title: 'Check soil moisture',
+          action: 'check',
+          message:
+              'Check soil moisture and inspect irrigation if dryness continues.',
+        ),
       ),
       _lowCondition(
         sensorKey: 'waterLevel',
@@ -27,6 +33,12 @@ class FieldStatusClassifier {
         unit: 'cm',
         thresholds: thresholds.waterLevel,
         concern: 'Water level is low for the field setup.',
+        actionRecommendation: const FieldRecommendation(
+          title: 'Check water level',
+          action: 'check',
+          message:
+              'Check water level and monitor the source before the next cycle.',
+        ),
       ),
       _highCondition(
         sensorKey: 'temperature',
@@ -35,6 +47,12 @@ class FieldStatusClassifier {
         unit: 'C',
         thresholds: thresholds.temperature,
         concern: 'Field temperature is above the monitoring range.',
+        actionRecommendation: const FieldRecommendation(
+          title: 'Inspect field temperature',
+          action: 'inspect',
+          message:
+              'Inspect field temperature and monitor for heat stress signs.',
+        ),
       ),
       _rangeCondition(
         sensorKey: 'humidity',
@@ -43,6 +61,12 @@ class FieldStatusClassifier {
         unit: '%',
         thresholds: thresholds.humidity,
         concern: 'Humidity is outside the monitoring range.',
+        actionRecommendation: const FieldRecommendation(
+          title: 'Monitor humidity',
+          action: 'monitor',
+          message:
+              'Monitor humidity and inspect field conditions if it persists.',
+        ),
       ),
     ];
 
@@ -52,7 +76,14 @@ class FieldStatusClassifier {
       fieldStatus: leadingCondition.status,
       leadingCondition: leadingCondition,
       conditions: conditions,
-      recommendation: _recommendationFor(leadingCondition),
+      recommendation: leadingCondition.status == FieldStatus.normal
+          ? const FieldRecommendation(
+              title: 'Continue monitoring',
+              action: 'monitor',
+              message:
+                  'Continue to monitor field readings during normal checks.',
+            )
+          : leadingCondition.actionRecommendation,
     );
   }
 
@@ -63,12 +94,31 @@ class FieldStatusClassifier {
     required String unit,
     required LowThresholds thresholds,
     required String concern,
+    required FieldRecommendation actionRecommendation,
   }) {
+    if (value.isNaN) {
+      return SensorCondition(
+        sensorKey: sensorKey,
+        displayLabel: displayLabel,
+        status: FieldStatus.critical,
+        value: value,
+        unit: unit,
+        thresholdContext: 'Invalid (NaN) reading.',
+        concern: concern,
+        deviationScore: double.infinity,
+        actionRecommendation: actionRecommendation,
+      );
+    }
     final status = value <= thresholds.criticalLow
         ? FieldStatus.critical
         : value <= thresholds.warningLow
         ? FieldStatus.warning
         : FieldStatus.normal;
+
+    final divisor = thresholds.warningLow - thresholds.criticalLow;
+    final deviation = value <= thresholds.warningLow
+        ? (divisor == 0 ? 1.0 : (thresholds.warningLow - value) / divisor)
+        : 0.0;
 
     return SensorCondition(
       sensorKey: sensorKey,
@@ -81,6 +131,8 @@ class FieldStatusClassifier {
       concern: status == FieldStatus.normal
           ? 'Within monitoring range.'
           : concern,
+      deviationScore: deviation,
+      actionRecommendation: actionRecommendation,
     );
   }
 
@@ -91,12 +143,31 @@ class FieldStatusClassifier {
     required String unit,
     required HighThresholds thresholds,
     required String concern,
+    required FieldRecommendation actionRecommendation,
   }) {
+    if (value.isNaN) {
+      return SensorCondition(
+        sensorKey: sensorKey,
+        displayLabel: displayLabel,
+        status: FieldStatus.critical,
+        value: value,
+        unit: unit,
+        thresholdContext: 'Invalid (NaN) reading.',
+        concern: concern,
+        deviationScore: double.infinity,
+        actionRecommendation: actionRecommendation,
+      );
+    }
     final status = value >= thresholds.criticalHigh
         ? FieldStatus.critical
         : value >= thresholds.warningHigh
         ? FieldStatus.warning
         : FieldStatus.normal;
+
+    final divisor = thresholds.criticalHigh - thresholds.warningHigh;
+    final deviation = value >= thresholds.warningHigh
+        ? (divisor == 0 ? 1.0 : (value - thresholds.warningHigh) / divisor)
+        : 0.0;
 
     return SensorCondition(
       sensorKey: sensorKey,
@@ -109,6 +180,8 @@ class FieldStatusClassifier {
       concern: status == FieldStatus.normal
           ? 'Within monitoring range.'
           : concern,
+      deviationScore: deviation,
+      actionRecommendation: actionRecommendation,
     );
   }
 
@@ -119,13 +192,36 @@ class FieldStatusClassifier {
     required String unit,
     required RangeThresholds thresholds,
     required String concern,
+    required FieldRecommendation actionRecommendation,
   }) {
+    if (value.isNaN) {
+      return SensorCondition(
+        sensorKey: sensorKey,
+        displayLabel: displayLabel,
+        status: FieldStatus.critical,
+        value: value,
+        unit: unit,
+        thresholdContext: 'Invalid (NaN) reading.',
+        concern: concern,
+        deviationScore: double.infinity,
+        actionRecommendation: actionRecommendation,
+      );
+    }
     final status =
         value <= thresholds.criticalLow || value >= thresholds.criticalHigh
         ? FieldStatus.critical
         : value <= thresholds.warningLow || value >= thresholds.warningHigh
         ? FieldStatus.warning
         : FieldStatus.normal;
+
+    double deviation = 0.0;
+    if (value <= thresholds.warningLow) {
+      final div = thresholds.warningLow - thresholds.criticalLow;
+      deviation = div == 0 ? 1.0 : (thresholds.warningLow - value) / div;
+    } else if (value >= thresholds.warningHigh) {
+      final div = thresholds.criticalHigh - thresholds.warningHigh;
+      deviation = div == 0 ? 1.0 : (value - thresholds.warningHigh) / div;
+    }
 
     return SensorCondition(
       sensorKey: sensorKey,
@@ -138,61 +234,23 @@ class FieldStatusClassifier {
       concern: status == FieldStatus.normal
           ? 'Within monitoring range.'
           : concern,
+      deviationScore: deviation,
+      actionRecommendation: actionRecommendation,
     );
   }
 
   SensorCondition _leadingCondition(List<SensorCondition> conditions) {
-    final critical = conditions.where(
-      (condition) => condition.status == FieldStatus.critical,
-    );
-    if (critical.isNotEmpty) return critical.first;
-
-    final warning = conditions.where(
-      (condition) => condition.status == FieldStatus.warning,
-    );
-    if (warning.isNotEmpty) return warning.first;
-
-    return conditions.first;
-  }
-
-  FieldRecommendation _recommendationFor(SensorCondition leadingCondition) {
-    if (leadingCondition.status == FieldStatus.normal) {
-      return const FieldRecommendation(
-        title: 'Continue monitoring',
-        action: 'monitor',
-        message: 'Continue to monitor field readings during normal checks.',
-      );
-    }
-
-    return switch (leadingCondition.sensorKey) {
-      'soilMoisture' => const FieldRecommendation(
-        title: 'Check soil moisture',
-        action: 'check',
-        message:
-            'Check soil moisture and inspect irrigation if dryness continues.',
-      ),
-      'waterLevel' => const FieldRecommendation(
-        title: 'Check water level',
-        action: 'check',
-        message:
-            'Check water level and monitor the source before the next cycle.',
-      ),
-      'temperature' => const FieldRecommendation(
-        title: 'Inspect field temperature',
-        action: 'inspect',
-        message: 'Inspect field temperature and monitor for heat stress signs.',
-      ),
-      'humidity' => const FieldRecommendation(
-        title: 'Monitor humidity',
-        action: 'monitor',
-        message:
-            'Monitor humidity and inspect field conditions if it persists.',
-      ),
-      _ => FieldRecommendation(
-        title: 'Check ${leadingCondition.displayLabel.toLowerCase()}',
-        action: 'check',
-        message: leadingCondition.concern,
-      ),
-    };
+    final sorted = List<SensorCondition>.from(conditions);
+    sorted.sort((a, b) {
+      if (a.status == b.status) {
+        return b.deviationScore.compareTo(a.deviationScore);
+      }
+      if (a.status == FieldStatus.critical) return -1;
+      if (b.status == FieldStatus.critical) return 1;
+      if (a.status == FieldStatus.warning) return -1;
+      if (b.status == FieldStatus.warning) return 1;
+      return 0;
+    });
+    return sorted.first;
   }
 }

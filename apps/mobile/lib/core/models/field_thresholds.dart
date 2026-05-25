@@ -29,30 +29,22 @@ class FieldThresholds {
   static FieldThresholds fromConfig(Map<String, Object?>? config) {
     if (config == null) return prototypeDefaults;
 
-    final freshnessSeconds = _positiveNumber(
-      config['freshnessThresholdSeconds'],
-    );
+    final freshnessSeconds = _parseNumber(config['freshnessThresholdSeconds']);
     final thresholdConfig = config['thresholds'];
-    final thresholds = thresholdConfig is Map ? thresholdConfig : config;
+    final thresholds = thresholdConfig is Map ? thresholdConfig : const {};
     final soilMoisture = LowThresholds.fromConfig(thresholds['soilMoisture']);
     final waterLevel = LowThresholds.fromConfig(thresholds['waterLevel']);
     final temperature = HighThresholds.fromConfig(thresholds['temperature']);
     final humidity = RangeThresholds.fromConfig(thresholds['humidity']);
 
-    if (freshnessSeconds == null ||
-        soilMoisture == null ||
-        waterLevel == null ||
-        temperature == null ||
-        humidity == null) {
-      return prototypeDefaults;
-    }
-
     return FieldThresholds(
-      freshnessThreshold: Duration(seconds: freshnessSeconds.round()),
-      soilMoisture: soilMoisture,
-      waterLevel: waterLevel,
-      temperature: temperature,
-      humidity: humidity,
+      freshnessThreshold: freshnessSeconds != null
+          ? Duration(seconds: freshnessSeconds.round())
+          : prototypeDefaults.freshnessThreshold,
+      soilMoisture: soilMoisture ?? prototypeDefaults.soilMoisture,
+      waterLevel: waterLevel ?? prototypeDefaults.waterLevel,
+      temperature: temperature ?? prototypeDefaults.temperature,
+      humidity: humidity ?? prototypeDefaults.humidity,
     );
   }
 
@@ -101,9 +93,11 @@ class LowThresholds {
   static LowThresholds? fromConfig(Object? value) {
     if (value is! Map) return null;
 
-    final criticalLow = _positiveNumber(value['criticalLow']);
-    final warningLow = _positiveNumber(value['warningLow']);
-    if (criticalLow == null || warningLow == null || criticalLow > warningLow) {
+    final criticalLow = _parseNumber(value['criticalLow']);
+    final warningLow = _parseNumber(value['warningLow']);
+    if (criticalLow == null ||
+        warningLow == null ||
+        criticalLow >= warningLow) {
       return null;
     }
 
@@ -130,11 +124,11 @@ class HighThresholds {
   static HighThresholds? fromConfig(Object? value) {
     if (value is! Map) return null;
 
-    final warningHigh = _positiveNumber(value['warningHigh']);
-    final criticalHigh = _positiveNumber(value['criticalHigh']);
+    final warningHigh = _parseNumber(value['warningHigh']);
+    final criticalHigh = _parseNumber(value['criticalHigh']);
     if (warningHigh == null ||
         criticalHigh == null ||
-        warningHigh > criticalHigh) {
+        warningHigh >= criticalHigh) {
       return null;
     }
 
@@ -168,17 +162,17 @@ class RangeThresholds {
   static RangeThresholds? fromConfig(Object? value) {
     if (value is! Map) return null;
 
-    final criticalLow = _positiveNumber(value['criticalLow']);
-    final warningLow = _positiveNumber(value['warningLow']);
-    final warningHigh = _positiveNumber(value['warningHigh']);
-    final criticalHigh = _positiveNumber(value['criticalHigh']);
+    final criticalLow = _parseNumber(value['criticalLow']);
+    final warningLow = _parseNumber(value['warningLow']);
+    final warningHigh = _parseNumber(value['warningHigh']);
+    final criticalHigh = _parseNumber(value['criticalHigh']);
     if (criticalLow == null ||
         warningLow == null ||
         warningHigh == null ||
         criticalHigh == null ||
-        criticalLow > warningLow ||
-        warningLow > warningHigh ||
-        warningHigh > criticalHigh) {
+        criticalLow >= warningLow ||
+        warningLow >= warningHigh ||
+        warningHigh >= criticalHigh) {
       return null;
     }
 
@@ -204,7 +198,7 @@ class RangeThresholds {
       Object.hash(criticalLow, warningLow, warningHigh, criticalHigh);
 }
 
-double? _positiveNumber(Object? value) {
-  if (value is num && value.isFinite && value > 0) return value.toDouble();
+double? _parseNumber(Object? value) {
+  if (value is num && value.isFinite) return value.toDouble();
   return null;
 }

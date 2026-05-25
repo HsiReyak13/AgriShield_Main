@@ -14,16 +14,20 @@ Future<void> main() {
         await AgriFirebase.initialize(
           // options: DefaultFirebaseOptions.currentPlatform,
         );
-      } on FirebaseException catch (e) {
+      } on FirebaseException catch (e, st) {
         if (kDebugMode) {
           print('Firebase initialization failed: ${e.message}');
           print(
             'Please run `flutterfire configure` or add google-services.json.',
           );
+        } else {
+          Error.throwWithStackTrace(e, st);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (kDebugMode) {
           print('Firebase initialization error: $e');
+        } else {
+          Error.throwWithStackTrace(e, st);
         }
       }
     },

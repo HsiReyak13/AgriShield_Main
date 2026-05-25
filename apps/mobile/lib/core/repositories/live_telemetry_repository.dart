@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:agrishield/core/models/data_source.dart';
 import 'package:agrishield/core/models/sensor_reading.dart';
 
@@ -7,6 +9,15 @@ abstract interface class LiveTelemetryRepository {
 
 abstract interface class LiveTelemetryDataSource {
   Stream<Object?> watchLatestPayload(String deviceCode);
+}
+
+class UnavailableLiveTelemetryDataSource implements LiveTelemetryDataSource {
+  const UnavailableLiveTelemetryDataSource();
+
+  @override
+  Stream<Object?> watchLatestPayload(String deviceCode) {
+    throw const LiveTelemetryDataSourceException('live-telemetry-unavailable');
+  }
 }
 
 class FirebaseLiveTelemetryRepository implements LiveTelemetryRepository {
@@ -19,8 +30,18 @@ class FirebaseLiveTelemetryRepository implements LiveTelemetryRepository {
   @override
   Stream<LiveTelemetryResult> watchLatest(String deviceCode) async* {
     try {
+      bool hasEmitted = false;
       await for (final payload in _dataSource.watchLatestPayload(deviceCode)) {
+        hasEmitted = true;
         yield _parsePayload(deviceCode, payload);
+      }
+      if (!hasEmitted) {
+        yield const LiveTelemetryResult.failure(
+          LiveTelemetryFailure(
+            code: LiveTelemetryFailureCode.noData,
+            message: 'No latest reading has arrived yet.',
+          ),
+        );
       }
     } on LiveTelemetryDataSourceException {
       yield const LiveTelemetryResult.failure(
@@ -29,7 +50,8 @@ class FirebaseLiveTelemetryRepository implements LiveTelemetryRepository {
           message: 'Latest field readings are unavailable right now.',
         ),
       );
-    } catch (_) {
+    } catch (e, st) {
+      developer.log('Unknown live telemetry error', error: e, stackTrace: st);
       yield const LiveTelemetryResult.failure(
         LiveTelemetryFailure(
           code: LiveTelemetryFailureCode.unknown,
@@ -86,10 +108,11 @@ class FirebaseLiveTelemetryRepository implements LiveTelemetryRepository {
         humidity > 100 ||
         soilMoisture == null ||
         soilMoisture < 0 ||
-        soilMoisture > 4095 ||
         waterLevel == null ||
         waterLevel < 0 ||
+        waterLevel > 1000 ||
         createdAt == null ||
+        createdAt.isAfter(DateTime.now().add(const Duration(hours: 24))) ||
         source != 'live' ||
         firmwareVersion is! String ||
         firmwareVersion.isEmpty) {
@@ -121,17 +144,21 @@ class FirebaseLiveTelemetryRepository implements LiveTelemetryRepository {
 
   double? _readDouble(Object? value) {
     if (value is num && value.isFinite) return value.toDouble();
+    if (value is String) return double.tryParse(value);
     return null;
   }
 
   int? _readInt(Object? value) {
     if (value is int) return value;
+    if (value is num && value.isFinite) return value.toInt();
+    if (value is String) return int.tryParse(value);
     return null;
   }
 
   DateTime? _readEpochMilliseconds(Object? value) {
-    if (value is! int || value <= 0) return null;
-    return DateTime.fromMillisecondsSinceEpoch(value);
+    final millis = _readInt(value);
+    if (millis == null || millis <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
   }
 }
 
