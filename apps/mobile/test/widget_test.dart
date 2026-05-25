@@ -1,6 +1,7 @@
 import 'package:agrishield/app/app.dart';
 import 'package:agrishield/app/router.dart';
 import 'package:agrishield/app/theme/agri_tokens.dart';
+import 'package:agrishield/core/repositories/device_connection_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +10,12 @@ void main() {
   late GoRouter router;
 
   Future<void> pumpAgriShield(WidgetTester tester) async {
-    router = createAppRouter();
+    router = createAppRouter(
+      deviceConnectionRepository: FirebaseDeviceConnectionRepository(
+        lookupDataSource: const UnavailableDeviceCodeLookupDataSource(),
+        connectionStore: MemoryDeviceConnectionStore(),
+      ),
+    );
     await tester.pumpWidget(AgriShieldApp(router: router));
     await tester.pumpAndSettle();
   }
@@ -101,5 +107,18 @@ void main() {
     expect(tokens, isNotNull);
     expect(tokens!.statusOkay, const Color(0xFF34C759));
     expect(find.text('Healthy'), findsOneWidget);
+  });
+
+  testWidgets('navigation tabs update app state and return to dashboard', (tester) async {
+    await pumpAgriShield(tester);
+
+    await tester.tap(find.text('Alerts'));
+    await tester.pumpAndSettle();
+    expect(find.text('High Temperature Alert'), findsOneWidget);
+
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    expect(find.text('Good Morning, Juan'), findsOneWidget);
+    expect(find.text('Field Health'), findsOneWidget);
   });
 }

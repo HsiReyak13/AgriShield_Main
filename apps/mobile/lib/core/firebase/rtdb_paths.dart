@@ -14,4 +14,9 @@ class RtdbPaths {
   }
 
   static String deviceConfig(String deviceCode) => 'devices/$deviceCode/config';
+<<<<<<< HEAD
+=======
+
+  static String deviceAlerts(String deviceCode) => 'devices/$deviceCode/alerts';
+>>>>>>> origin/main
 }

@@ -29,24 +29,47 @@ class DeviceConnection {
     final dataSourceName = json['dataSource'];
 
     if (deviceCode is! String ||
+<<<<<<< HEAD
         deviceCode.trim().isEmpty ||
         deviceId is! String ||
         deviceId.trim().isEmpty ||
         farmId is! String ||
         farmId.trim().isEmpty ||
+=======
+        deviceId is! String ||
+        farmId is! String ||
+>>>>>>> origin/main
         dataSourceName is! String) {
       return null;
     }
 
+<<<<<<< HEAD
+=======
+    final normalizedDeviceCode = _normalizeStoredDeviceCode(deviceCode);
+    final trimmedDeviceId = deviceId.trim();
+    final trimmedFarmId = farmId.trim();
+    if (normalizedDeviceCode.isEmpty ||
+        trimmedDeviceId.isEmpty ||
+        trimmedFarmId.isEmpty) {
+      return null;
+    }
+
+>>>>>>> origin/main
     final dataSource = DataSource.values
         .where((source) => source.name == dataSourceName)
         .firstOrNull;
     if (dataSource == null) return null;
 
     return DeviceConnection(
+<<<<<<< HEAD
       deviceCode: deviceCode,
       deviceId: deviceId,
       farmId: farmId,
+=======
+      deviceCode: normalizedDeviceCode,
+      deviceId: trimmedDeviceId,
+      farmId: trimmedFarmId,
+>>>>>>> origin/main
       dataSource: dataSource,
     );
   }
@@ -65,6 +88,13 @@ class DeviceConnection {
   int get hashCode => Object.hash(deviceCode, deviceId, farmId, dataSource);
 }
 
+<<<<<<< HEAD
+=======
+String _normalizeStoredDeviceCode(String code) {
+  return code.trim().replaceAll(RegExp(r'[.#$\[\]\s-]+'), '').toUpperCase();
+}
+
+>>>>>>> origin/main
 class DeviceCodeLookup {
   const DeviceCodeLookup({
     required this.farmId,
