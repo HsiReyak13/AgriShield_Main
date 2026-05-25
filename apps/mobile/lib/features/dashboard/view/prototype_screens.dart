@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:agrishield/app/theme/agri_theme.dart';
@@ -5,6 +6,8 @@ import 'package:agrishield/app/theme/agri_tokens.dart';
 import 'package:agrishield/core/logic/field_status_classifier.dart';
 import 'package:agrishield/core/models/device_connection.dart';
 import 'package:agrishield/core/models/field_status.dart';
+import 'package:agrishield/core/models/field_thresholds.dart';
+import 'package:agrishield/core/models/sensor_reading.dart';
 import 'package:agrishield/core/models/trust_state.dart';
 import 'package:agrishield/core/repositories/alert_repository.dart';
 import 'package:agrishield/core/repositories/device_connection_repository.dart';
@@ -245,6 +248,7 @@ class _AgriShellState extends State<AgriShell> {
 
   Future<void> _watchSavedDevice() async {
     final currentSequence = ++_watchSequence;
+    final alertGenerator = _alertGenerator;
     DeviceConnection? connection;
     try {
       connection = await widget.deviceConnectionRepository
@@ -258,10 +262,13 @@ class _AgriShellState extends State<AgriShell> {
       return;
     }
     _dashboardCubit.watchDevice(connection.deviceCode);
-    await _alertGenerator.startListening(
+    await alertGenerator.startListening(
       connection,
       widget.liveTelemetryRepository,
     );
+    if (!mounted || currentSequence != _watchSequence) {
+      alertGenerator.stopListening(connection.deviceCode);
+    }
   }
 
   @override
@@ -359,6 +366,7 @@ class _AgriShellState extends State<AgriShell> {
 
   @override
   void dispose() {
+    _watchSequence++;
     _dashboardCubit.close();
     _alertGenerator.dispose();
     super.dispose();
@@ -400,27 +408,54 @@ class PageFrame extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({
     required this.onOpenAlerts,
     required this.onOpenAdvice,
+    this.now,
     super.key,
   });
 
   final VoidCallback onOpenAlerts;
   final VoidCallback onOpenAdvice;
+  final DateTime Function()? now;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Timer? _freshnessTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _freshnessTicker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _freshnessTicker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardCubit, DashboardState>(
       builder: (context, state) {
-        final freshnessLabel = freshnessLabelForState(state);
+        final freshnessNow = widget.now?.call() ?? DateTime.now();
+        final freshnessLabel = freshnessLabelForState(state, now: freshnessNow);
         final metrics = sensorMetricsForState(state, freshnessLabel);
 
         void forceRefresh() {
           final deviceCode = context.read<DashboardCubit>().state.deviceCode;
           if (deviceCode != null) {
-            context.read<DashboardCubit>().watchDevice(deviceCode);
+            context.read<DashboardCubit>().watchDevice(
+              deviceCode,
+              forceRefresh: true,
+            );
           }
         }
 
@@ -433,6 +468,7 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 18),
             FieldStatusCard(
               state: state,
+              freshnessLabel: freshnessLabel,
               onPrimaryAction: () {
                 if (state.trustState == TrustState.warning ||
                     state.trustState == TrustState.critical) {
@@ -450,7 +486,7 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 10),
             MetricGrid(metrics: metrics),
             const SizedBox(height: 18),
-            AdvicePreviewCard(onOpenAdvice: onOpenAdvice),
+            AdvicePreviewCard(onOpenAdvice: widget.onOpenAdvice),
           ],
         );
       },
@@ -692,11 +728,13 @@ class FieldHeroCard extends StatelessWidget {
 class FieldStatusCard extends StatelessWidget {
   const FieldStatusCard({
     required this.state,
+    required this.freshnessLabel,
     required this.onPrimaryAction,
     super.key,
   });
 
   final DashboardState state;
+  final String freshnessLabel;
   final VoidCallback onPrimaryAction;
 
   @override
@@ -731,6 +769,8 @@ class FieldStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 TrustStatusChip(state: state.trustState),
+                const SizedBox(height: 8),
+                ReadingFreshnessLabel(label: freshnessLabel),
                 if (info.limitation != null) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -968,7 +1008,7 @@ String _semanticLabelForStatus(FieldStatus status) {
   };
 }
 
-String freshnessLabelForState(DashboardState state) {
+String freshnessLabelForState(DashboardState state, {DateTime? now}) {
   return switch (state.trustState) {
     TrustState.loading => 'Checking latest reading',
     TrustState.noData => 'No recent reading',
@@ -980,7 +1020,7 @@ String freshnessLabelForState(DashboardState state) {
     TrustState.warning ||
     TrustState.critical => _updatedAgoLabel(
       state.reading?.createdAt,
-      state.updatedAt ?? DateTime.now(),
+      now ?? state.updatedAt ?? DateTime.now(),
     ),
   };
 }
@@ -1057,7 +1097,7 @@ List<SensorMetric> sensorMetricsForState(
     metric(
       key: 'soilMoisture',
       label: 'Soil Moisture',
-      value: reading?.soilMoisture.toString() ?? '--',
+      value: reading == null ? '--' : _soilMoisturePercent(reading),
       unit: '%',
       icon: Icons.water_drop_outlined,
       points: MockAgriData.metrics[0].points,
@@ -1089,6 +1129,20 @@ List<SensorMetric> sensorMetricsForState(
   ];
 }
 
+String _soilMoisturePercent(SensorReading reading) {
+  final thresholds = FieldThresholds.prototypeDefaults.soilMoisture;
+  final raw = reading.soilMoisture.toDouble();
+  final displayHigh =
+      thresholds.warningLow + (thresholds.warningLow - thresholds.criticalLow);
+  final percent =
+      ((raw - thresholds.criticalLow) /
+              (displayHigh - thresholds.criticalLow) *
+              100)
+          .clamp(0, 100)
+          .round();
+  return percent.toString();
+}
+
 String _severityLabelForStatus(FieldStatus status) {
   return switch (status) {
     FieldStatus.normal => 'Normal',
@@ -1106,7 +1160,9 @@ class MetricGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final twoColumns = constraints.maxWidth >= 340;
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final twoColumns =
+            constraints.maxWidth >= (textScale > 1.3 ? 520 : 340);
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -1115,7 +1171,11 @@ class MetricGrid extends StatelessWidget {
             crossAxisCount: twoColumns ? 2 : 1,
             crossAxisSpacing: 14,
             mainAxisSpacing: 14,
-            childAspectRatio: twoColumns ? 1.08 : 2.3,
+            childAspectRatio: twoColumns
+                ? 1.08
+                : textScale > 1.3
+                ? 1.75
+                : 2.3,
           ),
           itemBuilder: (context, index) =>
               SensorMetricCard(metric: metrics[index]),
@@ -1202,15 +1262,22 @@ class SensorMetricCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  metric.value,
-                  style: TextStyle(
-                    color: metric.isUnavailable
-                        ? AgriTheme.muted
-                        : AgriTheme.text,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      metric.value,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: metric.isUnavailable
+                            ? AgriTheme.muted
+                            : AgriTheme.text,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 3),
@@ -1228,10 +1295,17 @@ class SensorMetricCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 5),
-            Text(metric.label, style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              metric.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
             const SizedBox(height: 4),
             Text(
               metric.severityLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: metric.color,
                 fontWeight: FontWeight.w800,
@@ -1743,7 +1817,10 @@ class SettingsScreen extends StatelessWidget {
         void forceRefresh() {
           final deviceCode = state.deviceCode;
           if (deviceCode != null) {
-            context.read<DashboardCubit>().watchDevice(deviceCode);
+            context.read<DashboardCubit>().watchDevice(
+              deviceCode,
+              forceRefresh: true,
+            );
           }
         }
 

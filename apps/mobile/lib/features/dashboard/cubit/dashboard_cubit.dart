@@ -30,10 +30,16 @@ class DashboardCubit extends Cubit<DashboardState> {
   Timer? _staleCheckTimer;
   FieldClassification? _lastKnownClassification;
 
-  void watchDevice(String deviceCode) {
-    if (state.deviceCode == deviceCode && _subscription != null) return;
+  void watchDevice(String deviceCode, {bool forceRefresh = false}) {
+    if (!forceRefresh &&
+        state.deviceCode == deviceCode &&
+        _subscription != null) {
+      return;
+    }
     _subscription?.cancel();
     _staleCheckTimer?.cancel();
+    _subscription = null;
+    _staleCheckTimer = null;
     if (isClosed) return;
 
     if (state.deviceCode != deviceCode) {
@@ -41,7 +47,10 @@ class DashboardCubit extends Cubit<DashboardState> {
     }
 
     emit(DashboardState.loading(deviceCode: deviceCode));
-    _staleCheckTimer = Timer.periodic(const Duration(seconds: 30), (_) => _checkStale());
+    _staleCheckTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _checkStale(),
+    );
     _subscription = _liveTelemetryRepository
         .watchLatest(deviceCode)
         .listen(
@@ -59,11 +68,12 @@ class DashboardCubit extends Cubit<DashboardState> {
           },
           onDone: () {
             if (isClosed) return;
+            _subscription = null;
             emit(
               DashboardState.ready(
                 trustState: TrustState.offline,
                 deviceCode: deviceCode,
-                lastKnownClassification: _lastKnownClassification,
+                lastKnownClassification: _stripNormalLastKnown(),
                 message: 'Latest field readings are unavailable right now.',
                 updatedAt: _now(),
               ),
@@ -75,7 +85,7 @@ class DashboardCubit extends Cubit<DashboardState> {
   void _checkStale() {
     if (isClosed || state.deviceCode == null || state.reading == null) return;
     if (state.trustState == TrustState.stale) return; // already stale
-    
+
     final age = _now().difference(state.reading!.createdAt);
     if (age > _thresholds.freshnessThreshold) {
       // Re-resolve with the existing reading to trigger stale state
@@ -107,11 +117,20 @@ class DashboardCubit extends Cubit<DashboardState> {
         deviceCode: deviceCode,
         reading: currentClassification == null ? null : result.reading,
         classification: currentClassification,
-        lastKnownClassification: _lastKnownClassification,
+        lastKnownClassification:
+            currentClassification ?? resolution.lastKnownClassification,
         message: _messageFor(result, resolution.trustState),
         updatedAt: _now(),
       ),
     );
+  }
+
+  FieldClassification? _stripNormalLastKnown() {
+    final classification = _lastKnownClassification;
+    if (classification == null) return null;
+    return classification.fieldStatus == FieldStatus.normal
+        ? null
+        : classification;
   }
 
   String _messageFor(LiveTelemetryResult result, TrustState trustState) {
